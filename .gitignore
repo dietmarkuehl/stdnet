@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+mkerr
+olderr
+build
+stdexec
+.vscode
