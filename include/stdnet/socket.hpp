@@ -22,7 +22,9 @@
 #pragma once
 
 #include <stdnet/netfwd.hpp>
+#include <stdexec/functional.hpp>
 #include <system_error>
+#include <type_traits>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>
@@ -32,33 +34,91 @@
 
 namespace stdnet
 {
-    using _Stdnet_native_handle_type = int;
-
     enum class socket_errc
     {
         already_open = 1,
         not_found
     };
 
-    auto socket_category() noexcept -> ::std::error_category const&
+    auto socket_category() noexcept -> ::std::error_category const&;
+
+    namespace _Stdnet_hidden
     {
-        struct _Category
-            : ::std::error_category
+        struct async_accept_t
         {
-            auto name() const noexcept -> char const* override { return "socket"; }
-            auto message(int _Error) const -> ::std::string override
+            template <typename _Receiver>
+            struct _State
             {
-                switch (::stdnet::socket_errc(_Error))
+                friend auto tag_invoke(::stdexec::start_t, _State&) noexcept
                 {
-                default: return "none";
-                case ::stdnet::socket_errc::already_open: return "already open";
-                case ::stdnet::socket_errc::not_found: return "not found";
+                    //-dk:TODO
                 }
+            };
+            template <typename _Protocol, ::stdexec::sender _Upstream>
+            struct _Sender
+            {
+                using is_sender = void;
+                using completion_signatures = ::stdexec::completion_signatures<
+                    ::stdexec::set_value_t(::stdnet::basic_stream_socket<_Protocol>),
+                    ::stdexec::set_error_t(::std::error_code), //-dk:TODO merge with _Upstream errors
+                    ::stdexec::set_stopped_t()
+                    >;
+                ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
+                _Upstream                                   _D_upstream;
+                template <typename _Receiver>
+                friend auto tag_invoke(::stdexec::connect_t, _Sender const&, _Receiver&& _R)
+                {
+                    return _State<::std::remove_cvref_t<_Receiver>>();
+                }
+            };
+
+            template <typename _Protocol>
+            friend auto tag_invoke(async_accept_t, ::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor)
+            {
+                return _Sender<_Protocol, decltype(::stdexec::just())>{_Acceptor, ::stdexec::just()};
+            }
+            template <::stdexec::sender _Upstream, typename _Protocol>
+            friend auto tag_invoke(async_accept_t, _Upstream&& _U, ::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor)
+            {
+                return _Sender<_Protocol, ::std::remove_cvref_t<_Upstream>>{_Acceptor, ::std::forward<_Upstream>(_U)};
+            }
+
+            template <typename _Acceptor_t>
+                requires ::stdexec::tag_invocable<async_accept_t, _Acceptor_t&>
+            auto operator()(_Acceptor_t& _Acceptor) const
+            {
+                return tag_invoke(*this, _Acceptor);
+            }
+            template <::stdexec::sender _Upstream, typename _Acceptor_t>
+                requires ::stdexec::tag_invocable<async_accept_t, _Upstream, _Acceptor_t&>
+            auto operator()(_Upstream&& _U, _Acceptor_t& _Acceptor) const
+            {
+                return tag_invoke(*this, ::std::forward<_Upstream>(_U), _Acceptor);
             }
         };
-        static const _Category _Rc{};
-        return _Rc;
     }
+    using _Stdnet_hidden::async_accept_t;
+    inline constexpr async_accept_t async_accept{};
+}
+
+auto ::stdnet::socket_category() noexcept -> ::std::error_category const&
+{
+    struct _Category
+        : ::std::error_category
+    {
+        auto name() const noexcept -> char const* override { return "socket"; }
+        auto message(int _Error) const -> ::std::string override
+        {
+            switch (::stdnet::socket_errc(_Error))
+            {
+            default: return "none";
+            case ::stdnet::socket_errc::already_open: return "already open";
+            case ::stdnet::socket_errc::not_found: return "not found";
+            }
+        }
+    };
+    static const _Category _Rc{};
+    return _Rc;
 }
 
 // ----------------------------------------------------------------------------
@@ -181,7 +241,7 @@ public:
     basic_socket_acceptor(::stdnet::io_context&, endpoint_type const& _Endpoint, bool _Reuse = true)
         : ::stdnet::socket_base()
         , _D_protocol(_Endpoint.protocol())
-        , _D_handle(-1)
+        , _D_handle(_Stdnet_invalid_handle)
     {
         this->open(_Endpoint.protocol());
         if (_Reuse)
@@ -193,7 +253,12 @@ public:
     }
     basic_socket_acceptor(::stdnet::io_context&, protocol_type const&, native_handle_type const&);
     basic_socket_acceptor(basic_socket_acceptor const&) = delete;
-    basic_socket_acceptor(basic_socket_acceptor&&);
+    basic_socket_acceptor(basic_socket_acceptor&& _Other)
+        : ::stdnet::socket_base()
+        , _D_protocol(_Other._D_protocol)
+        , _D_handle(::std::exchange(_Other._D_handle, _Stdnet_invalid_handle))
+    {
+    }
     template<typename _OtherProtocol>
     basic_socket_acceptor(::stdnet::basic_socket_acceptor<_OtherProtocol>&&);
     ~basic_socket_acceptor()
@@ -210,11 +275,11 @@ public:
     executor_type      get_executor() noexcept;
     native_handle_type native_handle() { return this->_D_handle; }
     native_handle_type _Native_handle() const { return this->_D_handle; }
-    void open(protocol_type const& _P = protocol_type())
+    auto open(protocol_type const& _P = protocol_type()) -> void
     {
         _Dispatch([this, &_P](::std::error_code& _Error){ this->open(_P, _Error); });
     }
-    void open(protocol_type const& _P, ::std::error_code& _Error)
+    auto open(protocol_type const& _P, ::std::error_code& _Error) -> void
     {
         if (this->is_open())
         {
@@ -230,12 +295,12 @@ public:
     void assign(protocol_type const&, native_handle_type const&, ::std::error_code&);
     native_handle_type release();
     native_handle_type release(::std::error_code&);
-    bool is_open() const noexcept { return this->_Native_handle() != -1; }
-    void close()
+    auto is_open() const noexcept -> bool { return this->_Native_handle() != _Stdnet_invalid_handle; }
+    auto close() -> void
     {
         _Dispatch([this](auto& _Error){ return this->close(_Error); });
     }
-    void close(::std::error_code& _Error)
+    auto close(::std::error_code& _Error) -> void
     {
         //-dk:TODO cancel outstanding work
         if (this->is_open() && ::close(this->native_handle()) < 0)
@@ -246,12 +311,12 @@ public:
     void cancel();
     void cancel(::std::error_code&);
     template<typename _SettableSocketOption>
-    void set_option(_SettableSocketOption const& _Option)
+    auto set_option(_SettableSocketOption const& _Option) -> void
     {
         _Dispatch([this, _Option](::std::error_code& _Error){ this->set_option(_Option, _Error); });
     }
     template<typename _SettableSocketOption>
-    void set_option(_SettableSocketOption const& _Option, ::std::error_code& _Error)
+    auto set_option(_SettableSocketOption const& _Option, ::std::error_code& _Error) -> void
     {
         if (::setsockopt(this->native_handle(),
                      _Option.level(this->_D_protocol),

@@ -25,6 +25,10 @@
 
 namespace stdnet
 {
+    using _Stdnet_native_handle_type = int;
+    inline constexpr _Stdnet_native_handle_type _Stdnet_invalid_handle{-1};
+
+
     class io_context;
     class socket_base;
     template <typename> class basic_socket;
