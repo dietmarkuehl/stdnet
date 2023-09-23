@@ -47,11 +47,70 @@ namespace stdnet
         struct async_accept_t
         {
             template <typename _Receiver>
-            struct _State
+            struct _State_base
             {
-                friend auto tag_invoke(::stdexec::start_t, _State&) noexcept
+                _Receiver _D_receiver;
+                template <typename _RT>
+                _State_base(_RT&& _R)
+                    : _D_receiver(::std::forward<_RT>(_R))
                 {
-                    //-dk:TODO
+                }
+                virtual auto _Start() -> void = 0;
+            };
+            template <typename _Receiver>
+            struct _Upstream_receiver
+            {
+                using is_receiver = void;
+                _State_base<_Receiver>* _D_state;
+                friend auto tag_invoke(::stdexec::set_value_t, _Upstream_receiver&& _Self) noexcept -> void
+                {
+                    _Self._D_state->_Start();
+                }
+                template <typename _Error>
+                friend auto tag_invoke(::stdexec::set_error_t, _Upstream_receiver&& _Self, _Error&& _E) -> void
+                {
+                    ::stdexec::set_error(::std::move(_Self._D_state->_D_receiver), ::std::forward<_Error>(_E));
+                }
+                friend auto tag_invoke(::stdexec::set_stopped_t, _Upstream_receiver&& _Self) -> void
+                {
+                    ::stdexec::set_stopped(::std::move(_Self._D_state->_D_receiver));
+                }
+                friend auto tag_invoke(::stdexec::get_env_t, _Upstream_receiver const& _Self) noexcept
+                {
+                    return ::stdexec::get_env(_Self._D_state->_D_receiver);
+                }
+            };
+            template <typename _Protocol, typename _Receiver, typename _Upstream>
+            struct _State
+                : ::stdnet::_Hidden::_Io_operation<::stdnet::ip::tcp::endpoint>
+                , _State_base<_Receiver>
+            {
+                using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
+
+                ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
+                _Upstream_state_t                           _D_state;
+
+                template <typename _RT, typename _Up_sender>
+                _State(::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor,
+                       _RT&& _R, _Up_sender&& _Up)
+                    : _State_base<_Receiver>(::std::forward<_RT>(_R))
+                    , _D_acceptor(_Acceptor)
+                    , _D_state(::stdexec::connect(::std::forward<_Up_sender>(_Up), _Upstream_receiver<_Receiver>(this)))
+                {
+                }
+                friend auto tag_invoke(::stdexec::start_t, _State& _Self) noexcept -> void
+                {
+                    std::cout << "accept::start\n";
+                    ::stdexec::start(_Self._D_state);
+                }
+                auto _Start() -> void override final
+                {
+                    std::cout << "actual accept::start\n";
+                    this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), this);
+                }
+                auto _Complete(void*) -> void override final
+                {
+                    std::cout << "accept::complete\n";
                 }
             };
             template <typename _Protocol, ::stdexec::sender _Upstream>
@@ -66,9 +125,13 @@ namespace stdnet
                 ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
                 _Upstream                                   _D_upstream;
                 template <typename _Receiver>
-                friend auto tag_invoke(::stdexec::connect_t, _Sender const&, _Receiver&& _R)
+                friend auto tag_invoke(::stdexec::connect_t, _Sender const& _Self, _Receiver&& _R)
                 {
-                    return _State<::std::remove_cvref_t<_Receiver>>();
+                    return _State<_Protocol, ::std::remove_cvref_t<_Receiver>, _Upstream>(
+                        _Self._D_acceptor,
+                        ::std::forward<_Receiver>(_R),
+                        ::std::move(_Self._D_upstream)
+                        );
                 }
             };
 
@@ -220,8 +283,9 @@ public:
     using socket_type        = typename protocol_type::socket;
 
 private:
-    protocol_type      _D_protocol; 
-    native_handle_type _D_handle{};
+    ::stdnet::io_context&         _D_context;
+    protocol_type                 _D_protocol; 
+    ::stdnet::_Hidden::_Socket_id _D_id{};
 
 private:
     template <typename _Fun_t>
@@ -238,10 +302,11 @@ private:
 public:
     explicit basic_socket_acceptor(::stdnet::io_context&);
     basic_socket_acceptor(::stdnet::io_context&, protocol_type const& protocol);
-    basic_socket_acceptor(::stdnet::io_context&, endpoint_type const& _Endpoint, bool _Reuse = true)
+    basic_socket_acceptor(::stdnet::io_context& _Context, endpoint_type const& _Endpoint, bool _Reuse = true)
         : ::stdnet::socket_base()
+        , _D_context(_Context)
         , _D_protocol(_Endpoint.protocol())
-        , _D_handle(_Stdnet_invalid_handle)
+        , _D_id(::stdnet::_Hidden::_Socket_id::_Invalid)
     {
         this->open(_Endpoint.protocol());
         if (_Reuse)
@@ -256,7 +321,7 @@ public:
     basic_socket_acceptor(basic_socket_acceptor&& _Other)
         : ::stdnet::socket_base()
         , _D_protocol(_Other._D_protocol)
-        , _D_handle(::std::exchange(_Other._D_handle, _Stdnet_invalid_handle))
+        , _D_id(::std::exchange(_Other._D_id, ::stdnet::_Hidden::_Socket_id::_Invalid))
     {
     }
     template<typename _OtherProtocol>
@@ -271,10 +336,14 @@ public:
     template<typename _OtherProtocol>
     basic_socket_acceptor& operator=(::stdnet::basic_socket_acceptor<_OtherProtocol>&&);
 
-    scheduler_type     get_scheduler() noexcept;
+    auto get_scheduler() noexcept -> scheduler_type
+    {
+        return this->_D_context.get_scheduler();
+    }
     executor_type      get_executor() noexcept;
-    native_handle_type native_handle() { return this->_D_handle; }
-    native_handle_type _Native_handle() const { return this->_D_handle; }
+    auto native_handle() -> native_handle_type { return this->_D_context._Native_handle(this->_D_id); }
+    auto _Native_handle() const -> native_handle_type { return this->_D_context._Native_handle(this->_D_id); }
+    auto _Id() const -> ::stdnet::_Hidden::_Socket_id { return this->_D_id; }
     auto open(protocol_type const& _P = protocol_type()) -> void
     {
         _Dispatch([this, &_P](::std::error_code& _Error){ this->open(_P, _Error); });
@@ -285,17 +354,13 @@ public:
         {
             _Error = ::std::error_code(int(socket_errc::already_open), ::stdnet::socket_category());
         }
-        this->_D_handle = ::socket(_P.family(), _P.type(), _P.protocol());
-        if (this->_D_handle < 0)
-        {
-            _Error = ::std::error_code(errno, ::std::system_category());
-        }
+        this->_D_id = this->_D_context._Make_socket(_P.family(), _P.type(), _P.protocol(), _Error);
     }
     void assign(protocol_type const&, native_handle_type const&);
     void assign(protocol_type const&, native_handle_type const&, ::std::error_code&);
     native_handle_type release();
     native_handle_type release(::std::error_code&);
-    auto is_open() const noexcept -> bool { return this->_Native_handle() != _Stdnet_invalid_handle; }
+    auto is_open() const noexcept -> bool { return this->_D_id != ::stdnet::_Hidden::_Socket_id::_Invalid; }
     auto close() -> void
     {
         _Dispatch([this](auto& _Error){ return this->close(_Error); });
@@ -303,10 +368,10 @@ public:
     auto close(::std::error_code& _Error) -> void
     {
         //-dk:TODO cancel outstanding work
-        if (this->is_open() && ::close(this->native_handle()) < 0)
+        if (this->is_open())
         {
-            _Error = ::std::error_code(errno, ::std::system_category());
-        }
+            this->_D_context._Release(this->_Id(), _Error);
+            }
     }
     void cancel();
     void cancel(::std::error_code&);

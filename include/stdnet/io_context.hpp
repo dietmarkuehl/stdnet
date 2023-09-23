@@ -24,6 +24,9 @@
 #include <stdnet/netfwd.hpp>
 #include <cstdint>
 #include <sys/socket.h>
+#include <unistd.h>
+#include <limits>
+#include <cerrno>
 
 // ----------------------------------------------------------------------------
 
@@ -31,12 +34,26 @@ namespace stdnet
 {
     namespace _Hidden
     {
-        enum _Socket_id: ::std::uint_least32_t {};
+        enum _Socket_id: ::std::uint_least32_t
+        {
+            _Invalid = ::std::numeric_limits<::std::uint_least32_t>::max()
+        };
 
-        template <typename... _Args>
         struct _Io_base
         {
-            virtual void _Complete(_Args...) = 0;
+            virtual void _Complete(void*) = 0;
+        };
+        template <typename _Data>
+        struct _Io_operation
+            : _Io_base
+            , _Data
+        {
+            template <typename _D = _Data>
+            _Io_operation(_D&& _A = _Data())
+                : _Io_base()
+                , _Data(::std::forward<_D>(_A))
+            {
+            }
         };
 
         template <typename _Record>
@@ -63,6 +80,10 @@ namespace stdnet
             {
                 this->_Records[::std::size_t(_Id)] = std::exchange(this->_Free, ::std::size_t(_Id));
             }
+            auto operator[](::stdnet::_Hidden::_Socket_id _Id) -> _Record&
+            {
+                return ::std::get<1>(this->_Records[::std::size_t(_Id)]);
+            }
         };
     }
     namespace _Hidden_abstract
@@ -70,13 +91,14 @@ namespace stdnet
         struct _Context
         {
             virtual ~_Context() = default;
-            virtual ::stdnet::_Hidden::_Socket_id _Make_socket(int, int, int) = 0;
-            virtual void _Release(::stdnet::_Hidden::_Socket_id) = 0;
+            virtual auto _Make_socket(int, int, int, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id = 0;
+            virtual auto _Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&) -> void = 0;
+            virtual auto _Native_handle(::stdnet::_Hidden::_Socket_id) -> _Stdnet_native_handle_type = 0;
 
-            virtual ::std::size_t run_one() = 0;
+            virtual auto run_one() -> ::std::size_t = 0;
 
-            virtual void _Accept(::stdnet::_Hidden::_Socket_id,
-                                 ::stdnet::_Hidden::_Io_base<::stdnet::_Hidden::_Socket_id, ::stdnet::ip::tcp::endpoint>*) = 0;
+            virtual auto _Accept(::stdnet::_Hidden::_Socket_id,
+                                 ::stdnet::_Hidden::_Io_operation<::stdnet::ip::tcp::endpoint>*) -> void = 0;
         };
     }
     namespace _Hidden_poll
@@ -91,22 +113,39 @@ namespace stdnet
         {
             ::stdnet::_Hidden::_Container<::stdnet::_Hidden_poll::_Record> _D_sockets;
 
-            ::stdnet::_Hidden::_Socket_id _Make_socket(int _D, int _T, int _P) override final
+            auto _Make_socket(int _D, int _T, int _P, ::std::error_code& _Error)
+                -> ::stdnet::_Hidden::_Socket_id override final
             {
-                 return this->_D_sockets._Insert(::socket(_D, _T, _P));
+                int _Fd(::socket(_D, _T, _P));
+                if (_Fd < 0)
+                {
+                    _Error = ::std::error_code(errno, ::std::system_category());
+                    return ::stdnet::_Hidden::_Socket_id::_Invalid;
+                }
+                return this->_D_sockets._Insert(_Fd);
             }
-            void _Release(::stdnet::_Hidden::_Socket_id _Id) override final
+            auto _Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error) -> void override final
             {
+                _Stdnet_native_handle_type _Handle(this->_D_sockets[_Id]._Handle);
                 this->_D_sockets._Erase(_Id);
+                if (::close(_Handle) < 0)
+                {
+                    _Error = ::std::error_code(errno, ::std::system_category());
+                }
+            }
+            auto _Native_handle(::stdnet::_Hidden::_Socket_id _Id) -> _Stdnet_native_handle_type override final
+            {
+                return this->_D_sockets[_Id]._Handle;
             }
 
-            ::std::size_t run_one() override final
+            auto run_one() -> ::std::size_t override final
             {
                 return ::std::size_t{};
             }
 
-            void _Accept(::stdnet::_Hidden::_Socket_id,
-                         ::stdnet::_Hidden::_Io_base<::stdnet::_Hidden::_Socket_id, ::stdnet::ip::tcp::endpoint>*) override final
+            auto _Accept(::stdnet::_Hidden::_Socket_id,
+                         ::stdnet::_Hidden::_Io_operation<::stdnet::ip::tcp::endpoint>*)
+                -> void override final
             {
             }
         };
@@ -124,18 +163,49 @@ namespace stdnet
 class stdnet::io_context
 {
 private:
-    ::std::unique_ptr<::stdnet::_Hidden_abstract::_Context> _Owned{new ::stdnet::_Hidden_poll::_Context()};
-    ::stdnet::_Hidden_abstract::_Context&                   _Context{*this->_Owned};
+    ::std::unique_ptr<::stdnet::_Hidden_abstract::_Context> _D_owned{new ::stdnet::_Hidden_poll::_Context()};
+    ::stdnet::_Hidden_abstract::_Context&                   _D_context{*this->_D_owned};
 
 public:
-    class scheduler_type {};
+    class scheduler_type
+    {
+        friend class io_context;
+    private:
+        ::stdnet::_Hidden_abstract::_Context* _D_context;
+        scheduler_type(::stdnet::_Hidden_abstract::_Context* _Context)
+            : _D_context(_Context)
+        {
+        }
+
+    public:
+        auto _Accept(::stdnet::_Hidden::_Socket_id _Id,
+                     ::stdnet::_Hidden::_Io_operation<::stdnet::ip::tcp::endpoint>* _Op) -> void
+        {
+            this->_D_context->_Accept(_Id, _Op);
+        }
+       
+    };
     class executor_type {};
 
     io_context() = default;
-    io_context(::stdnet::_Hidden_abstract::_Context& _Context): _Owned(), _Context(_Context) {}
+    io_context(::stdnet::_Hidden_abstract::_Context& _Context): _D_owned(), _D_context(_Context) {}
     io_context(io_context&&) = delete;
 
-    ::std::size_t run_one() { return this->_Context.run_one(); }
+    auto _Make_socket(int _D, int _T, int _P, ::std::error_code& _Error) -> ::stdnet::_Hidden::_Socket_id
+    {
+        return this->_D_context._Make_socket(_D, _T, _P, _Error);
+    }
+    auto _Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error) -> void
+    {
+        return this->_D_context._Release(_Id, _Error);
+    }
+    auto _Native_handle(::stdnet::_Hidden::_Socket_id _Id) -> _Stdnet_native_handle_type
+    {
+        return this->_D_context._Native_handle(_Id);
+    }
+    auto get_scheduler() -> scheduler_type { return scheduler_type(&this->_D_context); }
+
+    ::std::size_t run_one() { return this->_D_context.run_one(); }
     ::std::size_t run()
     {
         ::std::size_t _Count{};

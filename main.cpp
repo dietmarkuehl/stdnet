@@ -5,6 +5,17 @@
 #include <stdnet/io_context.hpp>
 #include <stdnet/socket.hpp>
 
+template <typename E>
+struct error_handler_base
+{
+    void operator()(E) {}
+};
+template <typename... E>
+struct error_handler
+    : error_handler_base<E>...
+{
+};
+
 int main()
 {
     std::cout << std::unitbuf;
@@ -22,10 +33,10 @@ int main()
         static_assert(::stdexec::sender<decltype(s)>);
         static_assert(::stdexec::sender<decltype(s1)>);
 
-        std::cout << "accept spawned\n";
+        std::cout << "spawning accept\n";
         scope.spawn(stdnet::async_accept(acceptor)
                     | stdexec::then([](auto&&...){ std::cout << "accepted\n"; })
-                    | stdexec::upon_error([](auto&&...){})
+                    | stdexec::upon_error(error_handler<std::error_code, std::exception_ptr>())
                     );
         std::cout << "running context\n";
         context.run();
