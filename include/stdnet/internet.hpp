@@ -205,6 +205,7 @@ public:
     auto port(::stdnet::ip::port_type) noexcept -> void;
 
     auto _Data() const -> ::sockaddr const* { return reinterpret_cast<::sockaddr const*>(&this->_D_address); }
+    auto _Data() -> ::sockaddr * { return reinterpret_cast<::sockaddr*>(&this->_D_address); }
     auto _Size() const -> ::socklen_t
     {
         return this->_D_address.ss_family == PF_INET? sizeof(::sockaddr_in): sizeof(::sockaddr_in6);

@@ -1,4 +1,4 @@
-// stdnet/netfwd.hpp                                                  -*-C++-*-
+// stdnet/basic_stream_socket.hpp                                     -*-C++-*-
 // ----------------------------------------------------------------------------
 /*
  * Copyright (c) 2023 Dietmar Kuehl http://www.dietmar-kuehl.de
@@ -17,43 +17,32 @@
  */
 // ----------------------------------------------------------------------------
 
-#ifndef INCLUDED_STDNET_NETFWD
-#define INCLUDED_STDNET_NETFWD
-#pragma once
+#ifndef INCLUDED_STDNET_BASIC_STREAM_SOCKET
+#define INCLUDED_STDNET_BASIC_STREAM_SOCKET
+
+#include <stdnet/netfwd.hpp>
+#include <stdnet/basic_socket.hpp>
 
 // ----------------------------------------------------------------------------
 
-namespace stdnet
+template <typename _Protocol>
+class stdnet::basic_stream_socket
+    : public basic_socket<_Protocol>
 {
-    namespace _Hidden
-    {
-        enum _Socket_id: ::std::uint_least32_t
-        {
-            _Invalid = ::std::numeric_limits<::std::uint_least32_t>::max()
-        };
-    }
-    namespace _Hidden_abstract
-    {
-        class _Context;
-    }
-    using _Stdnet_native_handle_type = int;
-    inline constexpr _Stdnet_native_handle_type _Stdnet_invalid_handle{-1};
+public:
+    using native_handle_type = _Stdnet_native_handle_type;
+    using protocol_type = _Protocol;
+    using endpoint_type = typename protocol_type::endpoint;
 
-
-    class io_context;
-    class socket_base;
-    template <typename> class basic_socket;
-    template <typename> class basic_stream_socket;
-    template <typename> class basic_socket_acceptor;
-    namespace ip
+    basic_stream_socket(::stdnet::_Hidden_abstract::_Context*, ::stdnet::_Hidden::_Socket_id)
     {
-        template <typename> class basic_endpoint;
-        class tcp;
-        class address;
-        class address_v4;
-        class address_v6;
     }
-}
+    basic_stream_socket(::stdnet::io_context&, endpoint_type const&)
+        : stdnet::basic_socket<_Protocol>()
+    {
+    }
+};
+
 
 // ----------------------------------------------------------------------------
 

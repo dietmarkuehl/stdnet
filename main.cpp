@@ -54,5 +54,6 @@ int main()
     catch (std::exception const& ex)
     {
         std::cout << "EXCEPTION: " << ex.what() << "\n";
+        abort();
     }
 }

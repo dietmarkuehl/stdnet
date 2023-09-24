@@ -1,4 +1,4 @@
-// stdnet/netfwd.hpp                                                  -*-C++-*-
+// stdnet/basic_socket.hpp                                            -*-C++-*-
 // ----------------------------------------------------------------------------
 /*
  * Copyright (c) 2023 Dietmar Kuehl http://www.dietmar-kuehl.de
@@ -17,43 +17,20 @@
  */
 // ----------------------------------------------------------------------------
 
-#ifndef INCLUDED_STDNET_NETFWD
-#define INCLUDED_STDNET_NETFWD
-#pragma once
+#ifndef INCLUDED_STDNET_BASIC_SOCKET
+#define INCLUDED_STDNET_BASIC_SOCKET
+
+#include <stdnet/netfwd.hpp>
+#include <stdnet/socket_base.hpp>
 
 // ----------------------------------------------------------------------------
 
-namespace stdnet
+template <typename Protocol>
+class stdnet::basic_socket
+    : public ::stdnet::socket_base
 {
-    namespace _Hidden
-    {
-        enum _Socket_id: ::std::uint_least32_t
-        {
-            _Invalid = ::std::numeric_limits<::std::uint_least32_t>::max()
-        };
-    }
-    namespace _Hidden_abstract
-    {
-        class _Context;
-    }
-    using _Stdnet_native_handle_type = int;
-    inline constexpr _Stdnet_native_handle_type _Stdnet_invalid_handle{-1};
+};
 
-
-    class io_context;
-    class socket_base;
-    template <typename> class basic_socket;
-    template <typename> class basic_stream_socket;
-    template <typename> class basic_socket_acceptor;
-    namespace ip
-    {
-        template <typename> class basic_endpoint;
-        class tcp;
-        class address;
-        class address_v4;
-        class address_v6;
-    }
-}
 
 // ----------------------------------------------------------------------------
 

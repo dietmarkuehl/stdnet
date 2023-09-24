@@ -30,6 +30,10 @@
 #include <cerrno>
 #include <string>
 
+#include <stdnet/socket_base.hpp>
+#include <stdnet/basic_socket.hpp>
+#include <stdnet/basic_stream_socket.hpp>
+
 // ----------------------------------------------------------------------------
 
 namespace stdnet
@@ -82,13 +86,24 @@ namespace stdnet
             };
             template <typename _Protocol, typename _Receiver, typename _Upstream>
             struct _State
-                : ::stdnet::_Hidden::_Io_operation<::stdnet::ip::tcp::endpoint>
+                : ::stdnet::_Hidden_abstract::_Context::_Accept_operation
                 , _State_base<_Receiver>
             {
+                struct _Cancel
+                {
+                    _State* _D_state;
+                    auto operator()() const
+                    {
+                        this->_D_state->_D_acceptor.get_scheduler()._Cancel(this->_D_state);
+                    }
+                };
                 using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
+                using _Stop_token = decltype(::stdexec::get_stop_token(::std::declval<_Receiver const&>()));
+                using _Callback = typename _Stop_token::template callback_type<_Cancel>;
 
                 ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
                 _Upstream_state_t                           _D_state;
+                ::std::optional<_Callback>                  _D_callback;
 
                 template <typename _RT, typename _Up_sender>
                 _State(::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor,
@@ -100,17 +115,22 @@ namespace stdnet
                 }
                 friend auto tag_invoke(::stdexec::start_t, _State& _Self) noexcept -> void
                 {
-                    std::cout << "accept::start\n";
                     ::stdexec::start(_Self._D_state);
                 }
                 auto _Start() -> void override final
                 {
-                    std::cout << "actual accept::start\n";
-                    this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), this);
+                    if (this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), this))
+                    {
+                        this->_D_callback.emplace(::stdexec::get_stop_token(this->_D_receiver), _Cancel{this});
+                    }
                 }
                 auto _Complete(void*) -> void override final
                 {
-                    std::cout << "accept::complete\n";
+                    ::stdexec::set_value(::std::move(this->_D_receiver), ::std::move(*std::get<2>(*this)));
+                }
+                auto _Error(::std::error_code _Err) -> void override final
+                {
+                    ::stdexec::set_error(::std::move(this->_D_receiver), _Err);
                 }
             };
             template <typename _Protocol, ::stdexec::sender _Upstream>
@@ -183,90 +203,6 @@ auto ::stdnet::socket_category() noexcept -> ::std::error_category const&
     static const _Category _Rc{};
     return _Rc;
 }
-
-// ----------------------------------------------------------------------------
-
-class stdnet::socket_base
-{
-public:
-    template <typename _Value_t, int _Level, int _Name>
-    class _Socket_option
-    {
-    private:
-        _Value_t _D_value;
-    
-    public:
-        explicit _Socket_option(_Value_t _V): _D_value(_V) {}
-        _Value_t _Value() const { return this->_D_value; }
-        template <typename _Protocol> auto data(_Protocol&&) const -> _Value_t const* { return &this->_D_value; }
-        template <typename _Protocol> auto data(_Protocol&&)       -> _Value_t const* { return &this->_D_value; }
-        template <typename _Protocol> constexpr auto level(_Protocol&&) const -> int { return _Level; }
-        template <typename _Protocol> constexpr auto name(_Protocol&&) const -> int { return _Name; }
-        template <typename _Protocol> constexpr auto size(_Protocol&&) const -> ::socklen_t { return sizeof(_Value_t); }
-    };
-    class broadcast;
-    class debug;
-    class do_not_route;
-    class keep_alive;
-    class linger;
-    class out_of_band_inline;
-    class receive_buffer_size;
-    class receive_low_watermark;
-    class reuse_address
-        : public _Socket_option<int, SOL_SOCKET, SO_REUSEADDR>
-    {
-    public:
-        explicit reuse_address(bool _Value): _Socket_option(_Value) {}
-        explicit operator bool() const { return this->_Value(); }
-    };
-    class send_buffer_size;
-    class send_low_watermark;
-
-    using shutdown_type = int; //-dk:TODO
-    static constexpr shutdown_type shutdown_receive{1};
-    static constexpr shutdown_type shutdown_send{2};
-    static constexpr shutdown_type shutdown_both{3};
-
-    using wait_type = int; //-dk:TODO
-    static constexpr wait_type wait_read{1};
-    static constexpr wait_type wait_write{2};
-    static constexpr wait_type wait_error{3};
-
-    using message_flags = int; //-dk:TODO
-    static constexpr message_flags message_peek{1};
-    static constexpr message_flags message_out_of_band{2};
-    static constexpr message_flags message_do_not_route{3};
-
-    static constexpr int max_listen_connections{SOMAXCONN};
-
-protected:
-    socket_base() = default;
-    ~socket_base() = default;
-};
-
-// ----------------------------------------------------------------------------
-
-template <typename Protocol>
-class stdnet::basic_socket
-{
-};
-
-// ----------------------------------------------------------------------------
-
-template <typename _Protocol>
-class stdnet::basic_stream_socket
-    : public basic_socket<_Protocol>
-{
-public:
-    using native_handle_type = _Stdnet_native_handle_type;
-    using protocol_type = _Protocol;
-    using endpoint_type = typename protocol_type::endpoint;
-
-    basic_stream_socket(io_context&, endpoint_type const&)
-        : stdnet::basic_socket<_Protocol>()
-    {
-    }
-};
 
 // ----------------------------------------------------------------------------
 
@@ -383,15 +319,13 @@ public:
     template<typename _SettableSocketOption>
     auto set_option(_SettableSocketOption const& _Option, ::std::error_code& _Error) -> void
     {
-        if (::setsockopt(this->native_handle(),
-                     _Option.level(this->_D_protocol),
-                     _Option.name(this->_D_protocol),
-                     _Option.data(this->_D_protocol),
-                     _Option.size(this->_D_protocol)
-                     ) < 0)
-        {
-            _Error = ::std::error_code(errno, ::std::system_category());
-        }
+        this->_D_context._Set_option(
+            this->_Id(),
+            _Option.level(this->_D_protocol),
+            _Option.name(this->_D_protocol),
+            _Option.data(this->_D_protocol),
+            _Option.size(this->_D_protocol),
+            _Error);
     }
 
     template<typename _GettableSocketOption>
@@ -414,10 +348,7 @@ public:
     }
     auto bind(endpoint_type const& _Endpoint, ::std::error_code& _Error) -> void
     {
-        if (::bind(this->native_handle(), _Endpoint._Data(), _Endpoint._Size()) < 0)
-        {
-            _Error = ::std::error_code(errno, ::std::system_category());
-        }
+        this->_D_context._Bind(this->_D_id, _Endpoint, _Error);
     }
     auto listen(int _No = ::stdnet::socket_base::max_listen_connections) -> void
     {
@@ -425,10 +356,7 @@ public:
     }
     auto listen(int _No, ::std::error_code& _Error) -> void
     {
-        if (::listen(this->native_handle(), _No) < 0)
-        {
-            _Error = ::std::error_code(errno, ::std::system_category());
-        }
+        this->_D_context._Listen(this->_D_id, _No, _Error);
     }
     endpoint_type local_endpoint() const;
     endpoint_type local_endpoint(::std::error_code&) const;
