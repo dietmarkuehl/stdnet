@@ -39,8 +39,9 @@ namespace stdnet
 
         struct _Io_base
         {
-            virtual void _Complete(void*) = 0;
+            virtual void _Complete() = 0;
             virtual void _Error(::std::error_code) = 0;
+            virtual void _Cancel() = 0;
         };
         template <typename _Data>
         struct _Io_operation
@@ -89,9 +90,12 @@ namespace stdnet
     {
         struct _Context
         {
-            using _Accept_operation = ::stdnet::_Hidden::_Io_operation<::std::tuple<::stdnet::ip::tcp::endpoint,
-                                                                       ::socklen_t,
-                                                                       ::std::optional<::stdnet::basic_stream_socket<::stdnet::ip::tcp>>>>;
+            using _Accept_operation = ::stdnet::_Hidden::_Io_operation<
+                ::std::tuple<::stdnet::ip::tcp::endpoint,
+                             ::socklen_t,
+                             ::std::optional<::stdnet::basic_stream_socket<::stdnet::ip::tcp>>
+                             >
+                            >;
             virtual ~_Context() = default;
             virtual auto _Make_socket(int) -> ::stdnet::_Hidden::_Socket_id = 0;
             virtual auto _Make_socket(int, int, int, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id = 0;
@@ -103,6 +107,7 @@ namespace stdnet
 
             virtual auto run_one() -> ::std::size_t = 0;
 
+            virtual auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void = 0;
             virtual auto _Accept(::stdnet::_Hidden::_Socket_id, _Accept_operation*) -> bool = 0;
         };
     }
@@ -247,6 +252,11 @@ namespace stdnet
                 }
                 return true;
             }
+
+            auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void override final
+            {
+                //-dk:TODO
+            }
             auto _Accept(::stdnet::_Hidden::_Socket_id _Id, _Accept_operation* _Completion)
                 -> bool override final
             {
@@ -261,7 +271,7 @@ namespace stdnet
                             if (0 <= _Rc)
                             {
                                 ::std::get<2>(_Completion) = ::stdnet::basic_stream_socket<::stdnet::ip::tcp>(_Ctxt, _Ctxt->_Make_socket(_Rc));
-                                _Completion._Complete(nullptr);
+                                _Completion._Complete();
                                 return true;
                             }
                             else
@@ -311,7 +321,10 @@ public:
         }
 
     public:
-        auto _Cancel(_Hidden::_Io_base*) -> void { /*-dk:TODO*/ }
+        auto _Cancel(_Hidden::_Io_base* _Op) -> void
+        {
+            this->_D_context->_Cancel(_Op);
+        }
         auto _Accept(::stdnet::_Hidden::_Socket_id _Id, _Hidden_abstract::_Context::_Accept_operation* _Op) -> bool
         {
             return this->_D_context->_Accept(_Id, _Op);

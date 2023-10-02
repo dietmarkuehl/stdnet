@@ -28,6 +28,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cerrno>
+#include <atomic>
 #include <string>
 
 #include <stdnet/socket_base.hpp>
@@ -89,21 +90,25 @@ namespace stdnet
                 : ::stdnet::_Hidden_abstract::_Context::_Accept_operation
                 , _State_base<_Receiver>
             {
-                struct _Cancel
+                struct _Cancel_callback
                 {
                     _State* _D_state;
                     auto operator()() const
                     {
-                        this->_D_state->_D_acceptor.get_scheduler()._Cancel(this->_D_state);
+                        if (1 < ++this->_D_state->_D_outstanding)
+                        {
+                            this->_D_state->_D_acceptor.get_scheduler()._Cancel(this->_D_state);
+                        }
                     }
                 };
                 using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
                 using _Stop_token = decltype(::stdexec::get_stop_token(::std::declval<_Receiver const&>()));
-                using _Callback = typename _Stop_token::template callback_type<_Cancel>;
+                using _Callback = typename _Stop_token::template callback_type<_Cancel_callback>;
 
                 ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
                 _Upstream_state_t                           _D_state;
                 ::std::optional<_Callback>                  _D_callback;
+                ::std::atomic<int>                          _D_outstanding{};
 
                 template <typename _RT, typename _Up_sender>
                 _State(::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor,
@@ -119,18 +124,32 @@ namespace stdnet
                 }
                 auto _Start() -> void override final
                 {
+                    ++this->_D_outstanding;
                     if (this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), this))
                     {
-                        this->_D_callback.emplace(::stdexec::get_stop_token(this->_D_receiver), _Cancel{this});
+                        this->_D_callback.emplace(::stdexec::get_stop_token(this->_D_receiver), _Cancel_callback{this});
                     }
                 }
-                auto _Complete(void*) -> void override final
+                auto _Complete() -> void override final
                 {
-                    ::stdexec::set_value(::std::move(this->_D_receiver), ::std::move(*std::get<2>(*this)));
+                    if (0 == --this->_D_outstanding)
+                    {
+                        ::stdexec::set_value(::std::move(this->_D_receiver), ::std::move(*std::get<2>(*this)));
+                    }
                 }
                 auto _Error(::std::error_code _Err) -> void override final
                 {
-                    ::stdexec::set_error(::std::move(this->_D_receiver), _Err);
+                    if (0 == --this->_D_outstanding)
+                    {
+                        ::stdexec::set_error(::std::move(this->_D_receiver), _Err);
+                    }
+                }
+                auto _Cancel() -> void override final
+                {
+                    if (0 == --this->_D_outstanding)
+                    {
+                        ::stdexec::set_stopped(::std::move(this->_D_receiver));
+                    }
                 }
             };
             template <typename _Protocol, ::stdexec::sender _Upstream>
