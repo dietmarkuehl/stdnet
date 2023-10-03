@@ -34,11 +34,22 @@
 
 namespace stdnet
 {
+    namespace _Hidden_abstract
+    {
+        struct _Context;
+    }
     namespace _Hidden
     {
 
         struct _Io_base
         {
+            _Io_base*                     _Next{nullptr};
+            ::stdnet::_Hidden::_Socket_id _Id;
+            int                           _Event;
+            bool                        (*_Work)(::stdnet::_Hidden_abstract::_Context&, _Io_base*);
+
+            _Io_base(::stdnet::_Hidden::_Socket_id _Id, int _Event): _Id(_Id), _Event(_Event) {}
+
             virtual void _Complete() = 0;
             virtual void _Error(::std::error_code) = 0;
             virtual void _Cancel() = 0;
@@ -49,8 +60,8 @@ namespace stdnet
             , _Data
         {
             template <typename _D = _Data>
-            _Io_operation(_D&& _A = _Data())
-                : _Io_base()
+            _Io_operation(::stdnet::_Hidden::_Socket_id _Id, int _Event, _D&& _A = _Data())
+                : _Io_base(_Id, _Event)
                 , _Data(::std::forward<_D>(_A))
             {
             }
@@ -114,25 +125,19 @@ namespace stdnet
     namespace _Hidden_poll
     {
         struct _Context;
-        using _Operation = auto (*)(_Context*, ::stdnet::_Hidden::_Socket_id, ::stdnet::_Hidden::_Io_base*) -> bool;
+        using _Operation = auto (*)(_Context*, ::stdnet::_Hidden::_Io_base*) -> bool;
         struct _Record
         {
             _Record(::stdnet::_Stdnet_native_handle_type _H): _Handle(_H) {}
             ::stdnet::_Stdnet_native_handle_type _Handle;
             bool                                 _Blocking{true};
         };
-        struct _Outstanding
-        {
-            ::stdnet::_Hidden::_Socket_id _D_id;
-            ::stdnet::_Hidden::_Io_base*  _D_completion;
-            _Operation                    _D_operation;
-        };
         struct _Context final
             : ::stdnet::_Hidden_abstract::_Context
         {
             ::stdnet::_Hidden::_Container<::stdnet::_Hidden_poll::_Record> _D_sockets;
             ::std::vector<::pollfd>     _D_poll;
-            ::std::vector<_Outstanding> _D_outstanding;
+            ::std::vector<::stdnet::_Hidden::_Io_base*> _D_outstanding;
 
             auto _Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id override final
             {
@@ -217,7 +222,8 @@ namespace stdnet
                         {
                             if (this->_D_poll[_I].revents & (this->_D_poll[_I].events | POLLERR))
                             {
-                                auto[_Id, _Completion, _Operation] = this->_D_outstanding[_I];
+                                ::stdnet::_Hidden::_Io_base* _Completion = this->_D_outstanding[_I];
+                                auto _Id{_Completion->_Id};
                                 if (_I + 1u != this->_D_poll.size())
                                 {
                                     this->_D_poll[_I] = this->_D_poll.back();
@@ -225,7 +231,7 @@ namespace stdnet
                                 }
                                 this->_D_poll.pop_back();
                                 this->_D_outstanding.pop_back();
-                                _Operation(this, _Id, _Completion);
+                                _Completion->_Work(*this, _Completion);
                                 return ::std::size_t(1);
                             }
                         }
@@ -238,15 +244,13 @@ namespace stdnet
                 //-dk:TODO wake-up polling thread
             }
 
-            auto _Add_Outstanding(::stdnet::_Hidden::_Socket_id _Id, 
-                                  ::stdnet::_Hidden::_Io_base* _Completion,
-                                  short _Events,
-                                  _Operation _Op) -> bool
+            auto _Add_Outstanding(::stdnet::_Hidden::_Io_base* _Completion) -> bool
             {
-                if (this->_D_sockets[_Id]._Blocking || !_Op(this, _Id, _Completion))
+                auto _Id{_Completion->_Id};
+                if (this->_D_sockets[_Id]._Blocking || !_Completion->_Work(*this, _Completion))
                 {
-                    this->_D_poll.emplace_back(this->_Native_handle(_Id), _Events, short());
-                    this->_D_outstanding.emplace_back(_Id, _Completion, _Op);
+                    this->_D_poll.emplace_back(this->_Native_handle(_Id), _Completion->_Event, short());
+                    this->_D_outstanding.emplace_back(_Completion);
                     this->_Wakeup();
                     return false;
                 }
@@ -260,17 +264,18 @@ namespace stdnet
             auto _Accept(::stdnet::_Hidden::_Socket_id _Id, _Accept_operation* _Completion)
                 -> bool override final
             {
-                return this->_Add_Outstanding(_Id, _Completion, POLLIN,
-                    [](_Context* _Ctxt, ::stdnet::_Hidden::_Socket_id _Id, ::stdnet::_Hidden::_Io_base* _Comp)
+                _Completion->_Work =
+                    [](::stdnet::_Hidden_abstract::_Context& _Ctxt, ::stdnet::_Hidden::_Io_base* _Comp)
                     {
+                        auto _Id{_Comp->_Id};
                         auto& _Completion(*static_cast<_Accept_operation*>(_Comp));
 
                         while (true)
                         {
-                            int _Rc = ::accept(_Ctxt->_Native_handle(_Id), ::std::get<0>(_Completion)._Data(), &::std::get<1>(_Completion));
+                            int _Rc = ::accept(_Ctxt._Native_handle(_Id), ::std::get<0>(_Completion)._Data(), &::std::get<1>(_Completion));
                             if (0 <= _Rc)
                             {
-                                ::std::get<2>(_Completion) = ::stdnet::basic_stream_socket<::stdnet::ip::tcp>(_Ctxt, _Ctxt->_Make_socket(_Rc));
+                                ::std::get<2>(_Completion) = ::stdnet::basic_stream_socket<::stdnet::ip::tcp>(&_Ctxt, _Ctxt._Make_socket(_Rc));
                                 _Completion._Complete();
                                 return true;
                             }
@@ -288,8 +293,8 @@ namespace stdnet
                                 }
                             }
                         }
-                    }
-                );
+                    };
+                return this->_Add_Outstanding(_Completion);
             }
         };
     }

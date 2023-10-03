@@ -113,7 +113,8 @@ namespace stdnet
                 template <typename _RT, typename _Up_sender>
                 _State(::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor,
                        _RT&& _R, _Up_sender&& _Up)
-                    : _State_base<_Receiver>(::std::forward<_RT>(_R))
+                    : ::stdnet::_Hidden_abstract::_Context::_Accept_operation(_Acceptor._Id(), POLLIN)
+                    , _State_base<_Receiver>(::std::forward<_RT>(_R))
                     , _D_acceptor(_Acceptor)
                     , _D_state(::stdexec::connect(::std::forward<_Up_sender>(_Up), _Upstream_receiver<_Receiver>(this)))
                 {
