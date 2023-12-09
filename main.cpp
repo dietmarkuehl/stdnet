@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdexec/execution.hpp>
 #include <exec/async_scope.hpp>
+#include <stdnet/container.hpp>
 #include <stdnet/internet.hpp>
 #include <stdnet/io_context.hpp>
 #include <stdnet/socket.hpp>
@@ -19,6 +20,7 @@ struct error_handler
 int main()
 {
     std::cout << std::unitbuf;
+
     try
     {
         exec::async_scope         scope;
