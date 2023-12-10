@@ -9,7 +9,7 @@ of things not, yet, listed which get added when discovered.
 
 | Context  | send | receive | accept | connect | poll |
 | -------- | ---- | ------- | ------ | ------- | ---- |
-| poll     | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
+| poll     | <ul><li>[ ] </li></ul>  | <ul><li>[ ] </li></ul>     | <ul><li>[ ] </li></ul>    | <ul><li>[ ] </li></ul>     | <ul><li>[ ] </li></ul>  |
 | select   | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
 | kqueue   | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
 | io_uring | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
