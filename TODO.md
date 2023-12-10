@@ -7,9 +7,10 @@ of things not, yet, listed which get added when discovered.
 
 ## Contexts
 
-||Context||send||receive||accept||connect||poll||
-|poll|[ ]|[ ]|[ ]|[ ]|[ ]|
-|select|[ ]|[ ]|[ ]|[ ]|[ ]|
-|kqueue|[ ]|[ ]|[ ]|[ ]|[ ]|
-|io_uring|[ ]|[ ]|[ ]|[ ]|[ ]|
-|IOCP|[ ]|[ ]|[ ]|[ ]|[ ]|
+| Context  | send | receive | accept | connect | poll |
+| -------- | ---- | ------- | ------ | ------- | ---- |
+| poll     | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
+| select   | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
+| kqueue   | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
+| io_uring | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
+| IOCP     | [ ]  | [ ]     | [ ]    | [ ]     | [ ]  |
