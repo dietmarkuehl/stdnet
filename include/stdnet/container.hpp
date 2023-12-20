@@ -30,6 +30,20 @@
 #include <utility>
 
 // ----------------------------------------------------------------------------
+// _Intrusive_list<Node> list
+// access:
+//     list.empty()
+// get content:
+//     Node& node{list.front()};
+//     list.pop_front();
+// ----------------------------------------------------------------------------
+// _Intrusive_queue<Node> queue
+// insert (note: the node needs to stay alive):
+//     Node node{...}; 
+//     queue._Push(node);
+// get content:
+//     auto list = queue._Extract();
+// ----------------------------------------------------------------------------
 
 namespace stdnet
 {

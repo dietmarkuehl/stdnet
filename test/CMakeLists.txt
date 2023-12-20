@@ -4,7 +4,9 @@
 #  ----------------------------------------------------------------------------
 
 set(stdnet_tests
-    net/test_intrusive_list.cpp
+    stdnet/test_intrusive_list.cpp
+    stdnet/test_context_base.cpp
+    stdnet/test_poll_context.cpp
     )
 
 add_executable(test.stdnet ${stdnet_tests})
