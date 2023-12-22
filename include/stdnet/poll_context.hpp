@@ -181,9 +181,11 @@ inline auto stdnet::_Poll_context::_Update_work() -> void
         switch (_Op._Opcode())
         {
         default:
-            //-dk:TODO deal with unknown opcodes: produce an error
+            _Op._Set_result(::stdnet::_Result::_Not_supported);
+            this->_D_complete.push_back(_Op);
             break;
         case ::stdnet::_Opcode::_Nop:
+            _Op._Set_result(::stdnet::_Result::_Success);
             this->_D_complete.push_back(_Op);
             break;
         case ::stdnet::_Opcode::_Cancel:

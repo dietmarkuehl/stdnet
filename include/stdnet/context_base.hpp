@@ -59,8 +59,9 @@ enum class stdnet::_Result
     : ::std::int_least64_t
 {
     _Success = 0,
-    _Cancelled = -1,
-    _Not_found = -2,
+    _Cancelled = -1,     // the operation was cancelled
+    _Not_found = -2,     // cancallation didn't find the operation to cancel
+    _Not_supported = -3, // the use opcode is not supported
 };
 
 // ----------------------------------------------------------------------------
@@ -106,16 +107,52 @@ public:
 class stdnet::_Context_base
 {
 protected:
-    virtual auto _Do_submit(_Io_base&) ->void = 0;
+    virtual auto _Do_submit(::stdnet::_Io_base&) -> void = 0;
+        // Submit the operation to be queued: won't complete immediately.
+    virtual auto _Do_try_or_submit(::stdnet::_Io_base&) -> void;
+        // Try the operation and, if not ready, submit to be queued: otherwise
+        // the operation may complete immediately. The precondition is that
+        // any attempt to to complete an operation is non-blocking. Thus, any handle
+        // used has to be set up to be non-blocking.
+        // The default implementation just delegates to to _Submit.
     virtual auto _Do_run_one() -> ::std::size_t = 0;
-
-    _Context_base(_Context_base&&) = delete;
+        // Run and try to complete one operation. This operation may block until
+        // there is something to complete. If there is nothing to complete the
+        // function returns 0.
+    virtual auto _Do_run() -> ::std::size_t;
+        // Run and try to complete multiple operations. The operation may block
+        // and/or complete operations as long as there is something to complete.
+        // The function returns the number of completed operations. The default
+        // implementation calls _Run_one until this function returns 0.
 
 public:
     _Context_base() = default;
-    auto _Submit(_Io_base& _Op) -> void { this->_Do_submit(_Op); }
+    _Context_base(_Context_base&&) = delete;
+    virtual ~_Context_base() = default;
+
+    auto _Submit(::stdnet::_Io_base& _Op) -> void { this->_Do_submit(_Op); }
+    auto _Try_or_submit(::stdnet::_Io_base& _Op) -> void { return _Do_try_or_submit(_Op); }
     auto _Run_one() -> ::std::size_t { return this->_Do_run_one(); }
+    auto _Run() -> ::std::size_t { return this->_Do_run(); }
 };
 
 // ----------------------------------------------------------------------------
+
+inline auto stdnet::_Context_base::_Do_try_or_submit(::stdnet::_Io_base& _Op) -> void
+{
+    this->_Submit(_Op);
+}
+
+inline auto stdnet::_Context_base::_Do_run() -> ::std::size_t
+{
+    ::std::size_t _Rc{};
+    while (0u != this->_Do_run_one())
+    {
+        ++_Rc;
+    }
+    return _Rc;
+}
+
+// ----------------------------------------------------------------------------
+
 #endif

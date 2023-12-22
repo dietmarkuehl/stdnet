@@ -21,6 +21,7 @@ test: build
 	build/test/test.stdnet
 
 clean:
+	if [ -d build ]; then cd build && $(MAKE) clean; fi
 	$(RM) mkerr olderr *~
 
 distclean: clean

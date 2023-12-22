@@ -33,6 +33,8 @@ namespace context_base
 {
     namespace
     {
+        // --------------------------------------------------------------------
+
         class io_base
             : public ::stdnet::_Io_base
         {
@@ -50,28 +52,71 @@ namespace context_base
             }
         };
 
+        // --------------------------------------------------------------------
+
         class context
             : public ::stdnet::_Context_base
         {
         private:
-            ::stdnet::_Io_base*& op;
+            ::stdnet::_Intrusive_list<::stdnet::_Io_base> outstanding;
         
         protected:
             auto _Do_submit(::stdnet::_Io_base& op) -> void override
             {
-                this->op = &op;
-                this->op->_Complete();
+                this->outstanding.push_back(op);
+            }
+            auto _Do_try_or_submit(::stdnet::_Io_base& op) -> void override
+            {
+                op._Complete();
             }
             
             auto _Do_run_one() -> ::std::size_t override
             {
-                return 0u;
-            }
+                if (this->outstanding.empty())
+                    return 0u;
 
-        public:
-            context(::stdnet::_Io_base*& op)
-                : op(op)
+                auto& op{this->outstanding.front()};
+                this->outstanding.pop_front();
+                op._Complete();
+                return 1u;
+            }
+            auto _Do_run() -> ::std::size_t override
             {
+                std::size_t rc{};
+                while (not this->outstanding.empty() && rc < 2u)
+                {
+                    ++rc;
+                    auto& op{this->outstanding.front()};
+                    this->outstanding.pop_front();
+                    op._Complete();
+                }
+                return rc;
+            }
+        };
+
+        // --------------------------------------------------------------------
+
+        class context_default
+            : public ::stdnet::_Context_base
+        {
+        private:
+            ::stdnet::_Intrusive_list<::stdnet::_Io_base> outstanding;
+        
+        protected:
+            auto _Do_submit(::stdnet::_Io_base& op) -> void override
+            {
+                this->outstanding.push_back(op);
+            }
+            
+            auto _Do_run_one() -> ::std::size_t override
+            {
+                if (this->outstanding.empty())
+                    return 0u;
+
+                auto& op{this->outstanding.front()};
+                this->outstanding.pop_front();
+                op._Complete();
+                return 1u;
             }
         };
     }
@@ -79,35 +124,137 @@ namespace context_base
 
 // ----------------------------------------------------------------------------
 
+TEST_CASE("io_base structors", "[io_base]")
+{
+    CHECK(not std::movable<context_base::io_base>);
+    CHECK(not std::copyable<context_base::io_base>);
+}
+
 TEST_CASE("io_base abstract members", "[io_base]")
 {
-    using io_base = context_base::io_base;
-    CHECK(not std::movable<io_base>);
-    CHECK(not std::copyable<io_base>);
-
     bool    flag{};
-    io_base obj(flag);
+    context_base::io_base obj(flag);
     CHECK(not flag);
+
     obj._Complete();
     CHECK(flag);
 }
 
-TEST_CASE("context_base abstract members", "[context_base]")
-{
-    using context = context_base::context;
-    using io_base = context_base::io_base;
-    CHECK(not std::movable<context>);
-    CHECK(not std::copyable<context>);
+// ----------------------------------------------------------------------------
 
-    ::stdnet::_Io_base* op{nullptr};
-    context ctxt(op);
+TEST_CASE("context_base structors", "[context_base]")
+{
+    CHECK(not std::movable<context_base::context>);
+    CHECK(not std::copyable<context_base::context>);
+}
+
+TEST_CASE("context_base _Submit", "[context_base]")
+{
+    context_base::context ctxt;
 
     bool flag{};
-    io_base obj(flag);
+    context_base::io_base obj(flag);
 
     CHECK(not flag);
-    CHECK(op == nullptr);
     ctxt._Submit(obj);
+    CHECK(not flag);
+    auto rc{ctxt._Run_one()};
+    CHECK(rc == 1u);
     CHECK(flag);
-    CHECK(op == &obj);
+}
+
+TEST_CASE("context_base _Try_or_submit", "[context_base]")
+{
+    context_base::context ctxt;
+
+    bool flag{};
+    context_base::io_base obj(flag);
+
+    CHECK(not flag);
+    ctxt._Try_or_submit(obj);
+    CHECK(flag);
+    auto rc{ctxt._Run_one()};
+    CHECK(rc == 0u);
+}
+
+TEST_CASE("context_base _Run_one", "[context_base]")
+{
+    context_base::context ctxt;
+
+    bool flag{};
+    context_base::io_base obj(flag);
+    {
+        auto rc{ctxt._Run_one()};
+        CHECK(rc == 0u);
+        CHECK(not flag);
+    }
+
+    CHECK(not flag);
+    ctxt._Submit(obj);
+    CHECK(not flag);
+    {
+        auto rc{ctxt._Run_one()};
+        CHECK(rc == 1u);
+        CHECK(flag);
+    }
+}
+
+TEST_CASE("context_base _Run", "[context_base]")
+{
+    context_base::context ctxt;
+
+    bool flag[3]{};
+    context_base::io_base obj[]{ {flag[0]}, {flag[1]}, {flag[2]} };
+    {
+        auto rc{ctxt._Run()};
+        CHECK(rc == 0u);
+        CHECK(std::none_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    }
+
+    CHECK(std::none_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    for (auto& o: obj) ctxt._Submit(o);
+    CHECK(std::none_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    {
+        auto rc{ctxt._Run()};
+        CHECK(rc == 2u);
+        CHECK(std::all_of(std::begin(flag), std::begin(flag) + 2, [](auto b){ return b; }));
+        CHECK(not flag[2]);
+    }
+}
+
+TEST_CASE("context_base _Try_or_submit (default)", "[context_base]")
+{
+    context_base::context_default ctxt;
+
+    bool flag{};
+    context_base::io_base obj(flag);
+
+    CHECK(not flag);
+    ctxt._Try_or_submit(obj);
+    CHECK(not flag);
+    auto rc{ctxt._Run_one()};
+    CHECK(flag);
+    CHECK(rc == 1u);
+}
+
+TEST_CASE("context_base _Run (default)", "[context_base]")
+{
+    context_base::context_default ctxt;
+
+    bool flag[3]{};
+    context_base::io_base obj[]{ {flag[0]}, {flag[1]}, {flag[2]} };
+    {
+        auto rc{ctxt._Run()};
+        CHECK(rc == 0u);
+        CHECK(std::none_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    }
+
+    CHECK(std::none_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    for (auto& o: obj) ctxt._Submit(o);
+    CHECK(std::none_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    {
+        auto rc{ctxt._Run()};
+        CHECK(rc == 3u);
+        CHECK(std::all_of(std::begin(flag), std::end(flag), [](auto b){ return b; }));
+    }
 }
