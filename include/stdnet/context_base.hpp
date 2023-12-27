@@ -1,3 +1,4 @@
+
 // stdnet/context_base.hpp                                            -*-C++-*-
 // ----------------------------------------------------------------------------
 //  Copyright (C) 2023 Dietmar Kuehl http://www.dietmar-kuehl.de
@@ -36,7 +37,7 @@ namespace stdnet {
 
     enum class _Opcode: int;
     enum class _Result: ::std::int_least64_t;
-    class _Io_base;
+    class _Io_operation;
     class _Context_base;
 }
 
@@ -51,6 +52,9 @@ enum class stdnet::_Opcode
     _Connect,
     _Send,
     _Receive,
+    _Poll,
+    _Wait_for,
+    _Wait_until
 };
 
 // ----------------------------------------------------------------------------
@@ -66,22 +70,23 @@ enum class stdnet::_Result
 
 // ----------------------------------------------------------------------------
 
-class stdnet::_Io_base
-    : public ::stdnet::_Intrusive_node<::stdnet::_Io_base>
+class stdnet::_Io_operation
+    : public ::stdnet::_Intrusive_node<::stdnet::_Io_operation>
 {
 private:
     ::stdnet::_Opcode        _D_opcode;
     ::stdnet::_Native_handle _D_handle;
     void*                    _D_address;
-    ::std::uint32_t          _D_len;
+    ::std::int_least64_t     _D_len;
     ::std::uint32_t          _D_flags;
     ::stdnet::_Result        _D_result{};
+    int                      _D_error;
 
 protected:
     virtual auto _Do_complete() -> void = 0;
 
 public:
-    _Io_base(::stdnet::_Opcode _O, void* _A = {}, ::stdnet::_Native_handle _H = {}, ::std::int32_t _L = {}, ::std::uint32_t _F = {})
+    _Io_operation(::stdnet::_Opcode _O, void* _A = {}, ::std::int32_t _L = {}, ::stdnet::_Native_handle _H = {}, ::std::uint32_t _F = {})
         : _D_opcode(_O)
         , _D_handle(_H)
         , _D_address(_A)
@@ -94,6 +99,10 @@ public:
     auto _Opcode() -> ::stdnet::_Opcode { return this->_D_opcode; }
     auto _Handle() -> ::stdnet::_Native_handle { return this->_D_handle; }
     auto _Address() -> void* { return this->_D_address; }
+    auto _Length() -> ::std::int64_t { return this->_D_len; }
+    auto _Set_length(::std::int_least64_t _Len) { this->_D_len = _Len; }
+    auto _Error() -> int { return this->_D_error; }
+    auto _Set_error(int _E) { this->_D_error = _E; }
 
     auto _Success() -> bool { return 0 <= this->_ResultValue(); }
     auto _Result() -> ::stdnet::_Result { return this->_D_result; }
@@ -107,9 +116,9 @@ public:
 class stdnet::_Context_base
 {
 protected:
-    virtual auto _Do_submit(::stdnet::_Io_base&) -> void = 0;
+    virtual auto _Do_submit(::stdnet::_Io_operation&) -> void = 0;
         // Submit the operation to be queued: won't complete immediately.
-    virtual auto _Do_try_or_submit(::stdnet::_Io_base&) -> void;
+    virtual auto _Do_try_or_submit(::stdnet::_Io_operation&) -> void;
         // Try the operation and, if not ready, submit to be queued: otherwise
         // the operation may complete immediately. The precondition is that
         // any attempt to to complete an operation is non-blocking. Thus, any handle
@@ -130,15 +139,15 @@ public:
     _Context_base(_Context_base&&) = delete;
     virtual ~_Context_base() = default;
 
-    auto _Submit(::stdnet::_Io_base& _Op) -> void { this->_Do_submit(_Op); }
-    auto _Try_or_submit(::stdnet::_Io_base& _Op) -> void { return _Do_try_or_submit(_Op); }
+    auto _Submit(::stdnet::_Io_operation& _Op) -> void { this->_Do_submit(_Op); }
+    auto _Try_or_submit(::stdnet::_Io_operation& _Op) -> void { return _Do_try_or_submit(_Op); }
     auto _Run_one() -> ::std::size_t { return this->_Do_run_one(); }
     auto _Run() -> ::std::size_t { return this->_Do_run(); }
 };
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Context_base::_Do_try_or_submit(::stdnet::_Io_base& _Op) -> void
+inline auto stdnet::_Context_base::_Do_try_or_submit(::stdnet::_Io_operation& _Op) -> void
 {
     this->_Submit(_Op);
 }

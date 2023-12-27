@@ -41,14 +41,14 @@ namespace stdnet
     namespace _Hidden
     {
 
-        struct _Io_base
+        struct _Io_operation
         {
-            _Io_base*                     _Next{nullptr};
+            _Io_operation*                     _Next{nullptr};
             ::stdnet::_Hidden::_Socket_id _Id;
             int                           _Event;
-            bool                        (*_Work)(::stdnet::_Hidden_abstract::_Context&, _Io_base*);
+            bool                        (*_Work)(::stdnet::_Hidden_abstract::_Context&, _Io_operation*);
 
-            _Io_base(::stdnet::_Hidden::_Socket_id _Id, int _Event): _Id(_Id), _Event(_Event) {}
+            _Io_operation(::stdnet::_Hidden::_Socket_id _Id, int _Event): _Id(_Id), _Event(_Event) {}
 
             virtual void _Complete() = 0;
             virtual void _Error(::std::error_code) = 0;
@@ -56,12 +56,12 @@ namespace stdnet
         };
         template <typename _Data>
         struct _Io_operation
-            : _Io_base
+            : _Io_operation
             , _Data
         {
             template <typename _D = _Data>
             _Io_operation(::stdnet::_Hidden::_Socket_id _Id, int _Event, _D&& _A = _Data())
-                : _Io_base(_Id, _Event)
+                : _Io_operation(_Id, _Event)
                 , _Data(::std::forward<_D>(_A))
             {
             }
@@ -118,14 +118,14 @@ namespace stdnet
 
             virtual auto run_one() -> ::std::size_t = 0;
 
-            virtual auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void = 0;
+            virtual auto _Cancel(::stdnet::_Hidden::_Io_operation*) -> void = 0;
             virtual auto _Accept(::stdnet::_Hidden::_Socket_id, _Accept_operation*) -> bool = 0;
         };
     }
     namespace _Hidden_poll
     {
         struct _Context;
-        using _Operation = auto (*)(_Context*, ::stdnet::_Hidden::_Io_base*) -> bool;
+        using _Operation = auto (*)(_Context*, ::stdnet::_Hidden::_Io_operation*) -> bool;
         struct _Record
         {
             _Record(::stdnet::_Stdnet_native_handle_type _H): _Handle(_H) {}
@@ -137,7 +137,7 @@ namespace stdnet
         {
             ::stdnet::_Hidden::_Container<::stdnet::_Hidden_poll::_Record> _D_sockets;
             ::std::vector<::pollfd>     _D_poll;
-            ::std::vector<::stdnet::_Hidden::_Io_base*> _D_outstanding;
+            ::std::vector<::stdnet::_Hidden::_Io_operation*> _D_outstanding;
 
             auto _Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id override final
             {
@@ -222,7 +222,7 @@ namespace stdnet
                         {
                             if (this->_D_poll[_I].revents & (this->_D_poll[_I].events | POLLERR))
                             {
-                                ::stdnet::_Hidden::_Io_base* _Completion = this->_D_outstanding[_I];
+                                ::stdnet::_Hidden::_Io_operation* _Completion = this->_D_outstanding[_I];
                                 auto _Id{_Completion->_Id};
                                 if (_I + 1u != this->_D_poll.size())
                                 {
@@ -244,7 +244,7 @@ namespace stdnet
                 //-dk:TODO wake-up polling thread
             }
 
-            auto _Add_Outstanding(::stdnet::_Hidden::_Io_base* _Completion) -> bool
+            auto _Add_Outstanding(::stdnet::_Hidden::_Io_operation* _Completion) -> bool
             {
                 auto _Id{_Completion->_Id};
                 if (this->_D_sockets[_Id]._Blocking || !_Completion->_Work(*this, _Completion))
@@ -257,7 +257,7 @@ namespace stdnet
                 return true;
             }
 
-            auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void override final
+            auto _Cancel(::stdnet::_Hidden::_Io_operation*) -> void override final
             {
                 //-dk:TODO
             }
@@ -265,7 +265,7 @@ namespace stdnet
                 -> bool override final
             {
                 _Completion->_Work =
-                    [](::stdnet::_Hidden_abstract::_Context& _Ctxt, ::stdnet::_Hidden::_Io_base* _Comp)
+                    [](::stdnet::_Hidden_abstract::_Context& _Ctxt, ::stdnet::_Hidden::_Io_operation* _Comp)
                     {
                         auto _Id{_Comp->_Id};
                         auto& _Completion(*static_cast<_Accept_operation*>(_Comp));
@@ -326,7 +326,7 @@ public:
         }
 
     public:
-        auto _Cancel(_Hidden::_Io_base* _Op) -> void
+        auto _Cancel(_Hidden::_Io_operation* _Op) -> void
         {
             this->_D_context->_Cancel(_Op);
         }

@@ -36,7 +36,7 @@ namespace context_base
         // --------------------------------------------------------------------
 
         class io_base
-            : public ::stdnet::_Io_base
+            : public ::stdnet::_Io_operation
         {
         private:
             bool& flag;
@@ -46,7 +46,7 @@ namespace context_base
 
         public:
             io_base(bool& flag)
-                : ::stdnet::_Io_base(::stdnet::_Opcode::_Nop, nullptr, {}, 0u, 0u)
+                : ::stdnet::_Io_operation(::stdnet::_Opcode::_Nop, nullptr, {}, 0u, 0u)
                 , flag(flag)
             {
             }
@@ -58,14 +58,14 @@ namespace context_base
             : public ::stdnet::_Context_base
         {
         private:
-            ::stdnet::_Intrusive_list<::stdnet::_Io_base> outstanding;
+            ::stdnet::_Intrusive_list<::stdnet::_Io_operation> outstanding;
         
         protected:
-            auto _Do_submit(::stdnet::_Io_base& op) -> void override
+            auto _Do_submit(::stdnet::_Io_operation& op) -> void override
             {
                 this->outstanding.push_back(op);
             }
-            auto _Do_try_or_submit(::stdnet::_Io_base& op) -> void override
+            auto _Do_try_or_submit(::stdnet::_Io_operation& op) -> void override
             {
                 op._Complete();
             }
@@ -100,10 +100,10 @@ namespace context_base
             : public ::stdnet::_Context_base
         {
         private:
-            ::stdnet::_Intrusive_list<::stdnet::_Io_base> outstanding;
+            ::stdnet::_Intrusive_list<::stdnet::_Io_operation> outstanding;
         
         protected:
-            auto _Do_submit(::stdnet::_Io_base& op) -> void override
+            auto _Do_submit(::stdnet::_Io_operation& op) -> void override
             {
                 this->outstanding.push_back(op);
             }
