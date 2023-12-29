@@ -35,8 +35,6 @@
 #include <poll.h>
 #include <sys/socket.h>
 
-#include <iostream> //-dk:TODO remove
-
 // ----------------------------------------------------------------------------
 
 namespace stdnet
@@ -60,7 +58,7 @@ private:
     auto _Update_work() -> void;
     auto _Add(::stdnet::_Io_operation& _Op, short _Ev) -> void;
     auto _Remove(::std::size_t _Index) -> void;
-    auto _Try_complete(::stdnet::_Io_operation& _Op) -> bool;
+    auto _Try_complete(::stdnet::_Io_operation& _Op, short _Ev) -> bool;
     auto _Complete(::stdnet::_Io_operation& _Op, ::std::int_least32_t _Rc) -> void;
     auto _Cancel(::stdnet::_Io_operation& _Op) -> void;
 
@@ -69,6 +67,7 @@ private:
     auto _Connect(::stdnet::_Io_operation& _Op) -> bool;
     auto _Send(::stdnet::_Io_operation& _Op) -> bool;
     auto _Receive(::stdnet::_Io_operation& _Op) -> bool;
+    auto _Poll(::stdnet::_Io_operation& _Op, short _Ev) -> bool;
 
 protected:
     auto _Do_submit(::stdnet::_Io_operation&) -> void override;
@@ -132,11 +131,7 @@ inline auto stdnet::_Poll_context::_Do_run_one() -> ::std::size_t
 
 inline auto stdnet::_Poll_context::_Poll() -> void
 {
-    std::cout << "entering poll: size=" << this->_D_poll.size() << "\n" << std::flush;
-    for (auto const& p: this->_D_poll)
-        std::cout << "   " << p.fd << " events=" << (p.events & POLLIN? "in ": "") << (p.events & POLLOUT? "out": "") << "\n" << std::flush;
     auto _Rc{::poll(this->_D_poll.data(), this->_D_poll.size(), -1)};
-    std::cout << "    poll result=" << _Rc << "\n" << std::flush;
     if (_Rc < 0)
     {
         switch (errno)
@@ -155,7 +150,7 @@ inline auto stdnet::_Poll_context::_Poll() -> void
     {
         if (this->_D_poll[_I].revents)
         {
-            bool _Done{this->_Try_complete(*this->_D_outstanding[_I])};
+            this->_Try_complete(*this->_D_outstanding[_I], this->_D_poll[_I].revents);
             this->_D_poll[_I].revents = {};
             this->_Remove(_I);
         }
@@ -179,9 +174,9 @@ inline auto stdnet::_Poll_context::_Remove(::std::size_t _Index) -> void
     this->_D_outstanding.pop_back();
 }
 
-inline auto stdnet::_Poll_context::_Try_complete(::stdnet::_Io_operation& _Op) -> bool
+inline auto stdnet::_Poll_context::_Try_complete(::stdnet::_Io_operation& _Op, short _Ev) -> bool
 {
-    return ::std::invoke([this, &_Op]{
+    return ::std::invoke([this, &_Op, _Ev]{
         switch (_Op._Opcode())
         {
         default:
@@ -196,16 +191,14 @@ inline auto stdnet::_Poll_context::_Try_complete(::stdnet::_Io_operation& _Op) -
             break;
         case ::stdnet::_Opcode::_Accept:
             return this->_Accept(_Op);
-            break;
         case ::stdnet::_Opcode::_Connect:
             return this->_Connect(_Op);
-            break;
         case ::stdnet::_Opcode::_Receive:
             return this->_Receive(_Op);
-            break;
         case ::stdnet::_Opcode::_Send:
             return this->_Send(_Op);
-            break;
+        case ::stdnet::_Opcode::_Poll:
+            return this->_Poll(_Op, _Ev);
         }
         return false;
     });
@@ -262,7 +255,6 @@ inline auto stdnet::_Poll_context::_Update_work() -> void
             this->_Cancel(_Op);
             break;
         case ::stdnet::_Opcode::_Accept:
-        case ::stdnet::_Opcode::_Receive:
             this->_Add(_Op, POLLIN);
             break;
         case ::stdnet::_Opcode::_Connect:
@@ -277,6 +269,12 @@ inline auto stdnet::_Poll_context::_Update_work() -> void
             break;
         case ::stdnet::_Opcode::_Send:
             this->_Add(_Op, POLLOUT);
+            break;
+        case ::stdnet::_Opcode::_Receive:
+            this->_Add(_Op, POLLIN);
+            break;
+        case ::stdnet::_Opcode::_Poll:
+            this->_Add(_Op, _Op._Flags());
             break;
         }
     }
@@ -347,11 +345,47 @@ inline auto stdnet::_Poll_context::_Connect(::stdnet::_Io_operation& _Op) -> boo
 
 inline auto stdnet::_Poll_context::_Send(::stdnet::_Io_operation& _Op) -> bool
 {
+    auto _Rc{::sendmsg(_Op._Handle(), static_cast<::msghdr*>(_Op._Address()), _Op._Flags())};
+    if (0 <= _Rc)
+    {
+        _Op._Set_result(_Rc);
+    }
+    else if (errno == EAGAIN)
+    {
+        return true;
+    }
+    else
+    {
+        _Op._Set_error(errno);
+    }
+    this->_D_complete.push_back(_Op);
     return false;
 }
 
 inline auto stdnet::_Poll_context::_Receive(::stdnet::_Io_operation& _Op) -> bool
 {
+    auto _Rc{::recvmsg(_Op._Handle(), static_cast<::msghdr*>(_Op._Address()), _Op._Flags())};
+    if (0 <= _Rc)
+    {
+        _Op._Set_result(_Rc);
+    }
+    else if (errno == EAGAIN)
+    {
+        return true;
+    }
+    else
+    {
+        _Op._Set_error(errno);
+    }
+    this->_D_complete.push_back(_Op);
+    return false;
+}
+
+inline auto stdnet::_Poll_context::_Poll(::stdnet::_Io_operation& _Op, short _Ev) -> bool
+{
+    _Op._Set_result(stdnet::_Result::_Success);
+    _Op._Set_flags(_Ev);
+    this->_D_complete.push_back(_Op);
     return false;
 }
 

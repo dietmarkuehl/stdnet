@@ -29,6 +29,7 @@
 
 #include <stdnet/container.hpp>
 #include <cstdint>
+#include <sys/socket.h>
 
 // ----------------------------------------------------------------------------
 
@@ -37,6 +38,7 @@ namespace stdnet {
 
     enum class _Opcode: int;
     enum class _Result: ::std::int_least64_t;
+    class _Message;
     class _Io_operation;
     class _Context_base;
 }
@@ -66,6 +68,23 @@ enum class stdnet::_Result
     _Cancelled = -1,     // the operation was cancelled
     _Not_found = -2,     // cancallation didn't find the operation to cancel
     _Not_supported = -3, // the use opcode is not supported
+};
+
+// ----------------------------------------------------------------------------
+
+class stdnet::_Message
+{
+private:
+    ::msghdr _D_msg;
+public:
+    _Message(::iovec* _Vec, int _Vlen)
+        : _D_msg{}
+    {
+        this->_D_msg.msg_iov = _Vec;
+        this->_D_msg.msg_iovlen = _Vlen;
+    }
+
+    ::msghdr* _Address() { return &this->_D_msg; }
 };
 
 // ----------------------------------------------------------------------------
@@ -101,6 +120,8 @@ public:
     auto _Address() -> void* { return this->_D_address; }
     auto _Length() -> ::std::int64_t { return this->_D_len; }
     auto _Set_length(::std::int_least64_t _Len) { this->_D_len = _Len; }
+    auto _Flags() -> ::std::int64_t { return this->_D_flags; }
+    auto _Set_flags(::std::int64_t _Flags) -> void { this->_D_flags = _Flags; }
     auto _Error() -> int { return this->_D_error; }
     auto _Set_error(int _E) { this->_D_error = _E; }
 

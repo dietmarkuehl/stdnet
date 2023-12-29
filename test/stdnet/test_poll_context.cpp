@@ -24,8 +24,6 @@
 // ----------------------------------------------------------------------------
 
 #include <stdnet/poll_context.hpp>
-#include <iostream> //-dk:TODO remove
-#include <iomanip> //-dk:TODO remove
 #include <thread>
 #include <unordered_map>
 #include <cerrno>
@@ -54,6 +52,7 @@ namespace
                 int reuseaddr{1};
                 CHECK(0 <= ::setsockopt(this->fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr)));
             }
+            socket(int fd): fd(fd) {}
             socket(socket&& other): fd(std::exchange(other.fd, -1)) {}
             ~socket() { if (0 <= this->fd) ::close(fd); }
             operator int() const { return this->fd; }
@@ -193,21 +192,101 @@ TEST_CASE("poll_context connect with ready server", "[poll_context]")
     ::poll_context::expected  ex;
 
     unsigned short       port(12345);
-    poll_context::client client(false, port);
-
-    ::poll_context::operation connect{ex, ::stdnet::_Opcode::_Connect, &client.address, sizeof(client.address), client};
-
     poll_context::server server(port);
 
     ::sockaddr_storage addr;
-    ::socklen_t len(sizeof(addr));
+    ::socklen_t        len(sizeof(addr));
     std::thread cthread([server = std::move(server), &addr, &len]{
         CHECK(0 <= ::accept(server, reinterpret_cast<::sockaddr*>(&addr), &len));
     });
 
+    poll_context::client      client(false, port);
+    ::poll_context::operation connect{ex, ::stdnet::_Opcode::_Connect, &client.address, sizeof(client.address), client};
     ctxt._Submit(connect);
     auto rc{ctxt._Run_one()};
     CHECK(rc == 1u);
 
     cthread.join();
+}
+
+TEST_CASE("poll_context send", "[poll_context]")
+{
+    ::stdnet::_Poll_context   ctxt;
+    ::poll_context::expected  ex;
+
+    unsigned short port(12345);
+    poll_context::server server(port);
+    poll_context::client client(true, port);
+    CHECK(0 <= ::connect(client.fd, reinterpret_cast<::sockaddr*>(&client.address), sizeof(client.address)));
+
+    ::sockaddr_storage addr;
+    ::socklen_t        len(sizeof(addr));
+    CHECK(0 <= ::accept(server, reinterpret_cast<::sockaddr*>(&addr), &len));
+
+    ::iovec vec[] = {
+        { .iov_base = const_cast<char*>("hello, "), .iov_len = 7 },
+        { .iov_base = const_cast<char*>("world\n"), .iov_len = 6 }
+    };
+    ::stdnet::_Message message(vec, 2);
+    ::poll_context::operation send{ex, ::stdnet::_Opcode::_Send, message._Address(), 0, client};
+    ctxt._Submit(send);
+    auto rc{ctxt._Run_one()};
+    CHECK(rc == 1u);
+    CHECK(send._ResultValue() == 13);
+}
+
+TEST_CASE("poll_context receive", "[poll_context]")
+{
+    ::stdnet::_Poll_context   ctxt;
+    ::poll_context::expected  ex;
+
+    unsigned short port(12345);
+    poll_context::server server(port);
+    poll_context::client client(true, port);
+    CHECK(0 <= ::connect(client.fd, reinterpret_cast<::sockaddr*>(&client.address), sizeof(client.address)));
+
+    ::sockaddr_storage addr;
+    ::socklen_t        len(sizeof(addr));
+    int                fd{::accept(server, reinterpret_cast<::sockaddr*>(&addr), &len)};
+    CHECK(0 <= fd);
+    poll_context::socket socket(fd);
+
+    char               rbuffer[64];
+    ::iovec            rvec[] = { { .iov_base = rbuffer, .iov_len = sizeof(rbuffer) } };
+    ::stdnet::_Message rmessage(rvec, 1);
+    ::poll_context::operation receive{ex, ::stdnet::_Opcode::_Receive, rmessage._Address(), 0, socket};
+    ctxt._Submit(receive);
+
+    ::iovec svec[] = {
+        { .iov_base = const_cast<char*>("hello, "), .iov_len = 7 },
+        { .iov_base = const_cast<char*>("world\n"), .iov_len = 6 }
+    };
+    ::stdnet::_Message smessage(svec, 2);
+    ::poll_context::operation send{ex, ::stdnet::_Opcode::_Send, smessage._Address(), 0, client};
+    ctxt._Submit(send);
+
+    auto rc{ctxt._Run_one() + ctxt._Run_one()};
+    CHECK(rc == 2u);
+    CHECK(send._ResultValue() == 13);
+    CHECK(receive._ResultValue() == 13);
+}
+
+TEST_CASE("poll_context poll", "[poll_context]")
+{
+    ::stdnet::_Poll_context   ctxt;
+    ::poll_context::expected  ex;
+
+    unsigned short port(12345);
+    poll_context::server server(port);
+    poll_context::client client(true, port);
+    CHECK(0 <= ::connect(client.fd, reinterpret_cast<::sockaddr*>(&client.address), sizeof(client.address)));
+
+    ::poll_context::operation poll{ex, ::stdnet::_Opcode::_Poll, nullptr, 0, server};
+    poll._Set_flags(POLLIN);
+
+    ctxt._Submit(poll);
+
+    auto rc{ctxt._Run_one()};
+    CHECK(rc == 1u);
+    CHECK(poll._Flags() == POLLIN);
 }
