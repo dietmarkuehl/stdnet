@@ -39,6 +39,7 @@ namespace stdnet {
     enum class _Opcode: int;
     enum class _Result: ::std::int_least64_t;
     class _Message;
+    class _Io_operation_base;
     class _Io_operation;
     class _Context_base;
 }
@@ -49,6 +50,7 @@ enum class stdnet::_Opcode
     : int
 {
     _Nop,
+    _Wakeup,
     _Cancel,
     _Accept,
     _Connect,
@@ -89,12 +91,23 @@ public:
 
 // ----------------------------------------------------------------------------
 
-class stdnet::_Io_operation
+class stdnet::_Io_operation_base
     : public ::stdnet::_Intrusive_node<::stdnet::_Io_operation>
 {
 private:
     ::stdnet::_Opcode        _D_opcode;
     ::stdnet::_Native_handle _D_handle;
+
+public:
+    _Io_operation_base(::stdnet::_Opcode _Opcode, ::stdnet::_Native_handle _Handle): _D_opcode(_Opcode), _D_handle(_Handle) {}
+    auto _Opcode() -> ::stdnet::_Opcode { return this->_D_opcode; }
+    auto _Handle() -> ::stdnet::_Native_handle { return this->_D_handle; }
+};
+
+class stdnet::_Io_operation
+    : public ::stdnet::_Io_operation_base
+{
+private:
     void*                    _D_address;
     ::std::int_least64_t     _D_len;
     ::std::uint32_t          _D_flags;
@@ -106,8 +119,7 @@ protected:
 
 public:
     _Io_operation(::stdnet::_Opcode _O, void* _A = {}, ::std::int32_t _L = {}, ::stdnet::_Native_handle _H = {}, ::std::uint32_t _F = {})
-        : _D_opcode(_O)
-        , _D_handle(_H)
+        : ::stdnet::_Io_operation_base(_O, _H)
         , _D_address(_A)
         , _D_len(_L)
         , _D_flags(_F)
@@ -115,8 +127,6 @@ public:
     }
     auto _Complete() -> void { this->_Do_complete(); }
 
-    auto _Opcode() -> ::stdnet::_Opcode { return this->_D_opcode; }
-    auto _Handle() -> ::stdnet::_Native_handle { return this->_D_handle; }
     auto _Address() -> void* { return this->_D_address; }
     auto _Length() -> ::std::int64_t { return this->_D_len; }
     auto _Set_length(::std::int_least64_t _Len) { this->_D_len = _Len; }

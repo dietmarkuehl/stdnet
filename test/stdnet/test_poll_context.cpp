@@ -151,7 +151,7 @@ TEST_CASE("poll_context cancel existing", "[poll_context]")
 
     ctxt._Submit(receive);
     ctxt._Submit(cancel);
-    auto rc = ctxt._Run_one() + ctxt._Run_one();
+    auto rc{ctxt._Run_one() + ctxt._Run_one() + ctxt._Run_one()};
     CHECK(rc == 2u);
     CHECK(ex.empty());
 }
@@ -289,4 +289,49 @@ TEST_CASE("poll_context poll", "[poll_context]")
     auto rc{ctxt._Run_one()};
     CHECK(rc == 1u);
     CHECK(poll._Flags() == POLLIN);
+}
+
+TEST_CASE("poll_context wait_for", "[poll_context]")
+{
+    using namespace ::std::chrono_literals;
+    ::stdnet::_Poll_context   ctxt;
+    ::poll_context::expected  ex;
+
+    
+    auto duration{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(10ms)};
+    poll_context::operation wait_for(ex, ::stdnet::_Opcode::_Wait_for, &duration);
+
+    auto start{::std::chrono::system_clock::now()};
+    ctxt._Submit(wait_for);
+    auto rc{ctxt._Run_one()};
+    CHECK(rc == 1u);
+    auto end{::std::chrono::system_clock::now()};
+    CHECK(duration <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
+}
+
+TEST_CASE("poll_context wait_for with wake-up", "[poll_context]")
+{
+    using namespace ::std::chrono_literals;
+    ::stdnet::_Poll_context   ctxt;
+    ::poll_context::expected  ex;
+
+    
+    auto duration1{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(10ms)};
+    poll_context::operation wait_for1(ex, ::stdnet::_Opcode::_Wait_for, &duration1);
+    auto duration2{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(20ms)};
+    poll_context::operation wait_for2(ex, ::stdnet::_Opcode::_Wait_for, &duration2);
+
+    auto start{::std::chrono::system_clock::now()};
+    ctxt._Submit(wait_for2);
+    std::thread thread{[&ctxt]{
+        auto rc{ctxt._Run_one() + ctxt._Run_one()};
+        CHECK(rc == 2u);
+    }};
+
+    ctxt._Submit(wait_for1);
+    thread.join();
+
+    auto end{::std::chrono::system_clock::now()};
+    CHECK(duration1 <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
+    CHECK(::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start) <= duration2);
 }
