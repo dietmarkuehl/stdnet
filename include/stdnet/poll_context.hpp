@@ -75,7 +75,7 @@ private:
         auto operator()() -> void { this->_D_context->_Produce(); }
     };
     using _Timer = ::std::pair<::std::chrono::system_clock::time_point, ::stdnet::_Io_operation*>;
-    using _Timer_compare = decltype([](auto const& _A, auto const& _B){ return _A.first < _B.first; });
+    using _Timer_compare = decltype([](auto const& _A, auto const& _B){ return _B.first < _A.first; });
     using _Queue_type = ::stdnet::_Intrusive_queue<::stdnet::_Io_operation, ::stdnet::_Poll_context::_Wakeup_fun>;
 
     ::stdnet::_Poll_context::_Queue_type                _D_queue;
@@ -316,7 +316,19 @@ inline auto stdnet::_Poll_context::_Complete(::stdnet::_Io_operation& _Op, ::std
 
 inline auto stdnet::_Poll_context::_Cancel(::stdnet::_Io_operation& _Op) -> void
 {
-    //-dk:TODO deal with cancelling timers
+    auto _Addr{static_cast<::stdnet::_Io_operation*>(_Op._Address())};
+    auto _Tt{::std::find_if(this->_D_timers.begin(), this->_D_timers.end(),
+                            [_Addr](auto const& _P){ return _Addr == _P.second; })};
+    if (_Tt != this->_D_timers.end())
+    {
+        ::stdnet::remove_heap(_Tt, this->_D_timers.begin(), this->_D_timers.end(), _Timer_compare());
+        this->_D_timers.pop_back();
+        _Addr->_Set_result(::stdnet::_Result::_Cancelled);
+        this->_D_complete.push_back(*_Addr);
+        _Op._Set_result(::stdnet::_Result::_Success);
+        this->_D_complete.push_back(_Op);
+        return;
+    }
     auto _It{::std::find(this->_D_outstanding.begin(), this->_D_outstanding.end(),
                          static_cast<::stdnet::_Io_operation*>(_Op._Address()))};
     if (_It == this->_D_outstanding.end())

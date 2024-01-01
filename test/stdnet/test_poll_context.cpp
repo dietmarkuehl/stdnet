@@ -298,15 +298,25 @@ TEST_CASE("poll_context wait_for", "[poll_context]")
     ::poll_context::expected  ex;
 
     
-    auto duration{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(10ms)};
-    poll_context::operation wait_for(ex, ::stdnet::_Opcode::_Wait_for, &duration);
+    auto duration1{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(10ms)};
+    poll_context::operation wait_for1(ex, ::stdnet::_Opcode::_Wait_for, &duration1);
+    auto duration2{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(20ms)};
+    poll_context::operation wait_for2(ex, ::stdnet::_Opcode::_Wait_for, &duration2);
+    auto duration3{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(30ms)};
+    poll_context::operation wait_for3(ex, ::stdnet::_Opcode::_Wait_for, &duration3);
 
     auto start{::std::chrono::system_clock::now()};
-    ctxt._Submit(wait_for);
+    ctxt._Submit(wait_for1);
+    ctxt._Submit(wait_for2);
+    ctxt._Submit(wait_for3);
     auto rc{ctxt._Run_one()};
     CHECK(rc == 1u);
     auto end{::std::chrono::system_clock::now()};
-    CHECK(duration <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
+    CHECK(duration1 <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
+    CHECK(::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start) <= duration2);
+    CHECK(::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start) <= duration3);
+    rc = ctxt._Run_one() + ctxt._Run_one();
+    CHECK(rc == 2u);
 }
 
 TEST_CASE("poll_context wait_for with wake-up", "[poll_context]")
@@ -334,4 +344,41 @@ TEST_CASE("poll_context wait_for with wake-up", "[poll_context]")
     auto end{::std::chrono::system_clock::now()};
     CHECK(duration1 <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
     CHECK(::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start) <= duration2);
+}
+
+TEST_CASE("poll_context cancel wait_for", "[poll_context]")
+{
+    using namespace ::std::chrono_literals;
+    ::stdnet::_Poll_context   ctxt;
+    ::poll_context::expected  ex;
+
+    
+    auto duration1{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(10ms)};
+    poll_context::operation wait_for1(ex, ::stdnet::_Opcode::_Wait_for, &duration1);
+    auto duration2{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(20ms)};
+    poll_context::operation wait_for2(ex, ::stdnet::_Opcode::_Wait_for, &duration2);
+    auto duration3{::std::chrono::duration_cast<::std::chrono::system_clock::duration>(30ms)};
+    poll_context::operation wait_for3(ex, ::stdnet::_Opcode::_Wait_for, &duration3);
+    poll_context::operation cancel(ex, ::stdnet::_Opcode::_Cancel, static_cast<::stdnet::_Io_operation*>(&wait_for2));
+
+    auto start{::std::chrono::system_clock::now()};
+    ctxt._Submit(wait_for1);
+    ctxt._Submit(wait_for2);
+    ctxt._Submit(wait_for3);
+    ctxt._Submit(cancel);
+    auto rc{ctxt._Run_one() + ctxt._Run_one()};
+    CHECK(rc == 2u);
+    auto end{::std::chrono::system_clock::now()};
+    CHECK(::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start) <= duration1 - 5ms);
+
+    rc = ctxt._Run_one();
+    CHECK(rc == 1u);
+    end = ::std::chrono::system_clock::now();
+    CHECK(duration1 <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
+    CHECK(::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start) <= duration1 + 5ms);
+
+    rc = ctxt._Run_one();
+    CHECK(rc == 1u);
+    end = ::std::chrono::system_clock::now();
+    CHECK(duration3 <= ::std::chrono::duration_cast<::std::chrono::milliseconds>(end - start));
 }

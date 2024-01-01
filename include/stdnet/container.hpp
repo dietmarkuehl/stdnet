@@ -26,6 +26,8 @@
 #ifndef INCLUDED_CONTAINER
 #define INCLUDED_CONTAINER
 
+#include <algorithm>
+#include <functional>
 #include <mutex>
 #include <utility>
 
@@ -60,6 +62,9 @@ namespace stdnet
               typename = ::stdnet::_Default_link<_T>
              >
         class _Intrusive_queue;
+
+    template <typename _It, typename _Comp = ::std::less<>>
+    auto remove_heap(_It _I, _It _Begin, _It _End, _Comp _C = {}) -> void;
 }
 
 // ----------------------------------------------------------------------------
@@ -148,6 +153,47 @@ public:
         return ::std::move(this->_List);
     }
 };
+
+// ----------------------------------------------------------------------------
+
+template <typename _It, typename _Comp>
+auto stdnet::remove_heap(_It _I, _It _Begin, _It _End, _Comp _C) -> void
+{
+    if (_I != --_End)
+    {
+        using namespace std;
+        auto _D{_I - _Begin};
+        while (0 < _D)
+        {
+            auto _N{(_D - 1) / 2};
+            swap(_Begin[_D], _Begin[_N]);
+            _D = _N;
+        }
+        swap(_Begin[_D], *_End);
+        auto _S{_End - _Begin};
+        while ((_D * 2 + 2 < _S))
+        {
+            auto _N{_D * 2 + 2};
+            if (_C(_Begin[_N], _Begin[_N - 1]))
+            {
+                --_N;
+            }
+            if (_C(_Begin[_D], _Begin[_N]))
+            {
+                swap(_Begin[_D], _Begin[_N]);
+                _D = _N;
+            }
+            else
+            {
+                return;
+            }
+        }
+        if (_D * 2 + 1 < _S && _C(_Begin[_D], _Begin[_D * 2 + 1]))
+        {
+            swap(_Begin[_D], _Begin[_D * 2 + 1]);
+        } 
+    }
+}
 
 // ----------------------------------------------------------------------------
 

@@ -4,7 +4,7 @@
 #  ----------------------------------------------------------------------------
 
 set(stdnet_tests
-    stdnet/test_intrusive_list.cpp
+    stdnet/test_container.cpp
     stdnet/test_context_base.cpp
     stdnet/test_poll_context.cpp
     )
