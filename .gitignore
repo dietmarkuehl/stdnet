@@ -35,4 +35,5 @@ mkerr
 olderr
 build
 stdexec
+libevent
 .vscode
