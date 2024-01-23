@@ -259,3 +259,71 @@ TEST_CASE("remove_heap", "[heap]")
     --size;
     CHECK(::std::is_heap(::std::begin(array), ::std::begin(array) + size));
 }
+
+// ----------------------------------------------------------------------------
+
+TEST_CASE("intrusive tree node", "[priority_queue]")
+{
+    ::stdnet::_Intrusive_tree_node<int> node0;
+    CHECK(node0._D_value == 0);
+    CHECK(node0._D_left == nullptr);
+    CHECK(node0._D_right == nullptr);
+
+    ::stdnet::_Intrusive_tree_node<int> node1{1};
+    CHECK(node1._D_value == 1);
+    CHECK(node1._D_left == nullptr);
+    CHECK(node1._D_right == nullptr);
+}
+
+TEST_CASE("intrusive priority queue basics", "[priority_queue]")
+{
+    ::stdnet::_Intrusive_tree_node<int>       node[]{ { 1 }, { 2 } };
+    ::stdnet::_Intrusive_priority_queue<int> queue;
+    CHECK(queue.empty());
+    CHECK(queue.size() == 0u);
+
+    queue.push(node[0]);
+    CHECK(not queue.empty());
+    CHECK(queue.size() == 1u);
+    CHECK(queue.top()._D_value == 1);
+}
+
+#include <iostream>
+#include <queue>
+TEST_CASE("intrusive priority queue insertion", "[priority_queue]")
+{
+    using node_t = ::stdnet::_Intrusive_tree_node<int>;
+    ::stdnet::_Intrusive_tree_node<int>      node[]{ {1}, {2}, {3}, {5}, {6}, {7}, {8}, {4} };
+    ::stdnet::_Intrusive_priority_queue<int> queue;
+
+    std::cout << "-----------\n";
+    for (auto& n: node)
+    {
+        queue.push(n);
+        std::queue<node_t*> q;
+        q.push(&queue.top());
+        q.push(nullptr);
+        std::cout << ">>>>>\n";
+        while (!q.empty())
+        {
+            auto x{q.front()};
+            q.pop();
+            if (x)
+            {
+                std::cout << x->_D_value << " ";
+                if (x->_D_left)
+                    q.push(x->_D_left);
+                if (x->_D_right)
+                    q.push(x->_D_right);
+            }
+            else
+            {
+                std::cout << "\n";
+                if (!q.empty())
+                    q.push(nullptr);
+            }
+        }
+        std::cout << "<<<<<\n";
+        std::cout << "\n";
+    }
+}

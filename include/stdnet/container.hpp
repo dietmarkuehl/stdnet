@@ -49,6 +49,8 @@
 
 namespace stdnet
 {
+    inline auto _TopBit(::std::size_t _V) -> ::std::size_t;
+
     template <typename _T>
     using _Default_link = decltype([](_T& _N)->_T& { return _N; });
     using _Default_wakeup = decltype([]{});
@@ -65,6 +67,21 @@ namespace stdnet
 
     template <typename _It, typename _Comp = ::std::less<>>
     auto remove_heap(_It _I, _It _Begin, _It _End, _Comp _C = {}) -> void;
+
+    template <typename>
+        struct _Intrusive_tree_node;
+    template <typename _T, typename = ::std::less<>>
+        class _Intrusive_priority_queue;
+}
+
+// ----------------------------------------------------------------------------
+
+inline auto stdnet::_TopBit(::std::size_t _V) -> ::std::size_t
+{
+    ::std::size_t _R{1u};
+    for (; _V >>= 1; _R <<= 1)
+        ;
+    return _R >> 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -193,6 +210,76 @@ auto stdnet::remove_heap(_It _I, _It _Begin, _It _End, _Comp _C) -> void
             swap(_Begin[_D], _Begin[_D * 2 + 1]);
         } 
     }
+}
+
+// ----------------------------------------------------------------------------
+
+template <typename _T>
+struct stdnet::_Intrusive_tree_node
+{
+    _T                                  _D_value{};
+    ::stdnet::_Intrusive_tree_node<_T>* _D_left{nullptr};
+    ::stdnet::_Intrusive_tree_node<_T>* _D_right{nullptr};
+};
+
+template <typename _T, typename _Cmp>
+class stdnet::_Intrusive_priority_queue
+{
+private:
+    ::stdnet::_Intrusive_tree_node<_T>* _D_root{nullptr};
+    ::std::size_t                       _D_size{0u};
+    _Cmp                                _D_cmp;
+
+public:
+    template <typename... _A>
+    explicit _Intrusive_priority_queue(_A&&...);
+    auto empty() const -> bool { return _D_root == nullptr; }
+    auto size() const -> ::std::size_t { return _D_size; }
+    auto push(::stdnet::_Intrusive_tree_node<_T>& _N) -> void;
+    auto top() -> ::stdnet::_Intrusive_tree_node<_T>& { return *this->_D_root; }
+    auto pop() -> ::stdnet::_Intrusive_tree_node<_T>&;
+    auto erase(::stdnet::_Intrusive_tree_node<_T>& _N) -> void;
+};
+
+template <typename _T, typename _Cmp>
+    template <typename... _A>
+inline stdnet::_Intrusive_priority_queue<_T, _Cmp>::_Intrusive_priority_queue(_A&&... _P)
+    : _D_cmp(::std::forward<_A>(_P)...)
+{
+}
+
+#include <iostream>
+template <typename _T, typename _Cmp>
+inline auto stdnet::_Intrusive_priority_queue<_T, _Cmp>::push(_Intrusive_tree_node<_T>& _N) -> void
+{
+    std::cout << "_N=" << _N._D_value << "\n";
+    _Intrusive_tree_node<_T>** _P{&this->_D_root};
+    auto const _Size{++this->_D_size};
+    auto       _Mask{::stdnet::_TopBit(_Size)};
+    while (*_P != nullptr && !this->_D_cmp((*_P)->_D_value, _N._D_value))
+    {
+        _P = &((_Size & _Mask)? (*_P)->_D_right: (*_P)->_D_left);
+        _Mask >>= 1;
+    }
+
+    if (*_P)
+        std::cout << "_P=" << (*_P)->_D_value << "\n";
+    else
+        std::cout << "_P is nullptr\n";
+
+    _Intrusive_tree_node<_T>* _M(*_P);
+    _Intrusive_tree_node<_T>* _C(&_N);
+    while (_M != nullptr)
+    {
+        _C->_D_left  = _M->_D_left;
+        _C->_D_right = _M->_D_right;
+        *_P = _C;
+        _P = &((_Size & _Mask)? _C->_D_right: _C->_D_left);
+        _Mask >>= 1;
+        _C = _M;
+        _M = *_P;
+    }
+    *_P = _C;
 }
 
 // ----------------------------------------------------------------------------
