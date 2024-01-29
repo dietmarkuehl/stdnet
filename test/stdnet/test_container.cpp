@@ -266,18 +266,20 @@ TEST_CASE("intrusive tree node", "[priority_queue]")
 {
     ::stdnet::_Intrusive_tree_node<int> node0;
     CHECK(node0._D_value == 0);
+    CHECK(node0._D_parent == nullptr);
     CHECK(node0._D_left == nullptr);
     CHECK(node0._D_right == nullptr);
 
     ::stdnet::_Intrusive_tree_node<int> node1{1};
     CHECK(node1._D_value == 1);
+    CHECK(node1._D_parent == nullptr);
     CHECK(node1._D_left == nullptr);
     CHECK(node1._D_right == nullptr);
 }
 
 TEST_CASE("intrusive priority queue basics", "[priority_queue]")
 {
-    ::stdnet::_Intrusive_tree_node<int>       node[]{ { 1 }, { 2 } };
+    ::stdnet::_Intrusive_tree_node<int>       node[]{ { 1 } };
     ::stdnet::_Intrusive_priority_queue<int> queue;
     CHECK(queue.empty());
     CHECK(queue.size() == 0u);
@@ -310,7 +312,16 @@ TEST_CASE("intrusive priority queue insertion", "[priority_queue]")
             q.pop();
             if (x)
             {
-                std::cout << x->_D_value << " ";
+                std::cout << x->_D_value << "(";
+                if (x->_D_parent == nullptr)
+                    std::cout << "N:-";
+                else if (x->_D_parent->_D_left == x)
+                    std::cout << "L:" << x->_D_parent->_D_value;
+                else if (x->_D_parent->_D_right == x)
+                    std::cout << "R:" << x->_D_parent->_D_value;
+                else
+                    std::cout << "?:?";
+                std::cout << ") ";
                 if (x->_D_left)
                     q.push(x->_D_left);
                 if (x->_D_right)
