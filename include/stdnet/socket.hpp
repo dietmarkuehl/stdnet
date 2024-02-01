@@ -106,7 +106,7 @@ namespace stdnet
                 using _Callback = typename _Stop_token::template callback_type<_Cancel_callback>;
 
                 ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
-                _Upstream_state_t                           _D_state;
+                //_Upstream_state_t                           _D_state;
                 ::std::optional<_Callback>                  _D_callback;
                 ::std::atomic<int>                          _D_outstanding{};
 
@@ -116,12 +116,12 @@ namespace stdnet
                     : ::stdnet::_Hidden_abstract::_Context::_Accept_operation(_Acceptor._Id(), POLLIN)
                     , _State_base<_Receiver>(::std::forward<_RT>(_R))
                     , _D_acceptor(_Acceptor)
-                    , _D_state(::stdexec::connect(::std::forward<_Up_sender>(_Up), _Upstream_receiver<_Receiver>(this)))
+                    //, _D_state(::stdexec::connect(::std::forward<_Up_sender>(_Up), _Upstream_receiver<_Receiver>(this)))
                 {
                 }
                 friend auto tag_invoke(::stdexec::start_t, _State& _Self) noexcept -> void
                 {
-                    ::stdexec::start(_Self._D_state);
+                    //::stdexec::start(_Self._D_state);
                 }
                 auto _Start() -> void override final
                 {
