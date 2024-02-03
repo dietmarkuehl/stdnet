@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 
-my @properties = (
+my @transport_properties = (
     # 6.2 Transport Properties
     [ "reliability", "::stdnet::preference::require" ],
     [ "preserve_msg_boundaries", "::stdnet::preference::no_preference" ],
@@ -21,7 +21,9 @@ my @properties = (
     [ "direction", "::stdnet::direction_type::bidirectional" ],
     [ "soft_error_notify", "::stdnet::preference::no_preference" ],
     [ "active_read_before_send", "::stdnet::preference::no_preference" ],
+);
 
+my @security_parameters = (
     # 6.3 Security Parameters
     [ "allowed_security_protocols", "::stdnet::_Empty{}", "::std::vector<::stdnet::security_protocol>" ], #-dk:TODO fix default
     [ "server_certificate", "::stdnet::_Empty{}", "::std::vector<::std::string>" ],
@@ -36,7 +38,9 @@ my @properties = (
     [ "pre_shared_key", "::stdnet::_Empty{}", "::std::string" ],
     #-dk:TODO trust_callback
     #-dk:TODO challenge_callback
+);
 
+my @message_properties = (
     # 9.1.3 Message Properties
     [ "msg_lifetime", "~::std::size_t{}" ],
     [ "msg_priority", "::std::size_t{100}" ],
@@ -50,31 +54,67 @@ my @properties = (
     [ "no_segmentation", "false" ],
 );
 
-print "namespace stdnet\n";
-print "{\n";
-print "    namespace _Names\n";
-print "    {\n";
-foreach my $i (0..$#properties)
+sub mknames(@)
 {
-    my @spec = @{$properties[$i]};
-    print "        inline constexpr char ", $spec[0], "[] = \"", $spec[0], "\";\n";
-}
-print "    }\n";
-print "\n";
-
-foreach my $i (0..$#properties)
-{
-    my($name, $dfault, $type) = @{$properties[$i]};
-    print "    using $name" . "_t = ::stdnet::property<\n";
-    print "        ::stdnet::_Names::$name,\n";
-    print "        $dfault";
-    if ($type)
+    my @properties = @_;
+    print "    namespace _Names\n";
+    print "    {\n";
+    foreach my $i (0..$#properties)
     {
-        print ",\n        $type";
+        my @spec = @{$properties[$i]};
+        print "        inline constexpr char ", $spec[0], "[] = \"", $spec[0], "\";\n";
     }
-    print "\n        >;\n";
-    print "    inline constexpr $name" . "_t $name" . "{};\n";
+    print "    }\n";
+    print "\n";
+}
+    
+sub mkproperties(@)
+{
+    my @properties = @_;
+    foreach my $i (0..$#properties)
+    {
+        my($name, $dfault, $type) = @{$properties[$i]};
+        print "    using $name" . "_t = ::stdnet::property<\n";
+        print "        ::stdnet::_Names::$name,\n";
+        print "        $dfault";
+        if ($type)
+        {
+            print ",\n        $type";
+        }
+        print "\n        >;\n";
+        print "    inline constexpr $name" . "_t $name" . "{};\n";
+        print "\n";
+    }
+    
+}
+    
+sub mktype($@)
+{
+    my $name = shift;
+    my @properties = @_;
+    print "    using $name = ::stdnet::properties<\n";
+    foreach my $i (0..$#properties)
+    {
+        my($name, $dfault, $type) = @{$properties[$i]};
+        print "        $name", "_t", ($i != $#properties?",": "") ,"\n";
+    }
+    print "        >;\n";
     print "\n";
 }
 
+print "namespace stdnet\n";
+print "{\n";
+mknames(@transport_properties);
+mknames(@security_parameters);
+mknames(@message_properties);
+
+mkproperties(@transport_properties);
+mkproperties(@security_parameters);
+mkproperties(@message_properties);
+
+mktype("transport_properties", @transport_properties);
+mktype("security_parameters", @security_parameters);
+mktype("message_properties", @message_properties);
+
 print "}\n";
+    

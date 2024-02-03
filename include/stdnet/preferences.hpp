@@ -93,16 +93,6 @@ namespace stdnet
 }
 #include "stdnet/properties_def.hpp"
 
-namespace stdnet
-{
-    using transport_properties
-        = properties<
-        reliability_t,
-        preserve_msg_boundaries_t,
-        interface_t
-        >;
-}
-
 // ----------------------------------------------------------------------------
 
 inline ::std::ostream& stdnet::operator<< (std::ostream& _Out, ::stdnet::preference _P)
