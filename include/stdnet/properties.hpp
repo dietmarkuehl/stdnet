@@ -41,8 +41,6 @@ namespace stdnet
         template <typename _T>
         operator _T() const { return {}; }
     };
-    enum class preference { prohibit, avoid, no_preference, prefer, require };
-    ::std::ostream& operator<< (std::ostream&, preference);
 
     template <char const* _Name, auto _Default, typename _Type = decltype(_Default)>
     struct property
@@ -89,7 +87,6 @@ namespace stdnet
         }
     };
 
-
     template <typename... _P>
     class properties
     {
@@ -117,62 +114,6 @@ namespace stdnet
         }
     };
 
-    namespace _Names
-    {
-        inline constexpr char reliability[] = "reliability";
-        inline constexpr char preserve_msg_boundaries[] = "preserve_msg_boundaries";
-        inline constexpr char per_msg_reliability[] = "per_msg_reliability";
-        inline constexpr char preserve_order[] = "preserve_order";
-        inline constexpr char zero_rtt_msg[] = "zero_rtt_msg";
-        inline constexpr char multistreaming[] = "multistreaming";
-        inline constexpr char full_checksum_send[] = "full_checksum_send";
-        inline constexpr char full_checksum_recv[] = "full_checksum_recv";
-        inline constexpr char congestion_control[] = "congestion_control";
-        inline constexpr char keep_alive[] = "keep_alive";
-
-        inline constexpr char interface[] = "interface";
-    }
-
-    using reliability_t = property<
-        ::stdnet::_Names::reliability,
-        ::stdnet::preference::require
-        >;
-    inline constexpr reliability_t reliability{};
-
-    using preserve_msg_boundaries_t = ::stdnet::property<
-        ::stdnet::_Names::preserve_msg_boundaries,
-        ::stdnet::preference::no_preference
-        >;
-    inline constexpr preserve_msg_boundaries_t preserve_msg_boundaries{};
-
-    using interface_t = property<
-        ::stdnet::_Names::interface,
-        ::stdnet::_Empty{},
-        ::std::vector<::std::pair<::stdnet::preference, ::std::string>>
-        >;
-    inline constexpr interface_t interface{};
-
-    using transport_properties
-        = properties<
-        reliability_t,
-        preserve_msg_boundaries_t,
-        interface_t
-        >;
-}
-
-// ----------------------------------------------------------------------------
-
-inline ::std::ostream& stdnet::operator<< (std::ostream& _Out, ::stdnet::preference _P)
-{
-    switch (_P)
-    {
-    default: return _Out << "<unknown>";
-    case ::stdnet::preference::require: return _Out << "require";
-    case ::stdnet::preference::avoid: return _Out << "avoid";
-    case ::stdnet::preference::no_preference: return _Out << "no_preference";
-    case ::stdnet::preference::prefer: return _Out << "prefer";
-    case ::stdnet::preference::prohibit: return _Out << "prohibit";
-    }
 }
 
 // ----------------------------------------------------------------------------

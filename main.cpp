@@ -1,8 +1,8 @@
 #include <any>
 #include <iostream>
 #include <stdexcept>
-#include <stdnet/properties.hpp>
-#include <stdnet/preconnection.hpp>
+#include "stdnet/preferences.hpp"
+#include "stdnet/preconnection.hpp"
 
 template <typename T>
 T extract(::std::any const& v)
