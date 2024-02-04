@@ -50,7 +50,14 @@ namespace stdnet
         static constexpr auto get_default() { return _Default; }
         friend ::std::ostream& operator<< (::std::ostream& _Out, property const&)
         {
-            return _Out << "prop(" << _Name << ", default=" << _Default << ")";
+            if constexpr (::std::same_as<::stdnet::_Empty, decltype(_Default)>)
+            {
+                return _Out << _Name << "(<empty>)";
+            }
+            else
+            {
+                return _Out << _Name << "(" << _Default << ")";
+            }
         }
     };
 
@@ -102,6 +109,16 @@ namespace stdnet
         {
             return ::std::get<_MapKey<_Key, ::std::index_sequence_for<_P...>, _P...>::value()>(this->_Values);
         }
+        template <typename _Key, typename _Value>
+        auto set(_Key const&, _Value const& _V)
+        {
+            ::std::get<_MapKey<_Key, ::std::index_sequence_for<_P...>, _P...>::value()>(this->_Values) = _V;
+        }
+        template <typename _Key, typename _Value>
+        auto push_back(_Key const&, _Value const& _V)
+        {
+            ::std::get<_MapKey<_Key, ::std::index_sequence_for<_P...>, _P...>::value()>(this->_Values).push_back(_V);
+        }
         ::std::any get(char const* _Key)
         {
             return this->get(::std::string_view(_Key));
@@ -111,6 +128,37 @@ namespace stdnet
             ::std::any _Rc;
             _GetKey<::std::index_sequence_for<_P...>, _P...>::get(_Rc, _Key, this->_Values);
             return _Rc;
+        }
+        friend ::std::ostream& operator<< (::std::ostream& _Out, properties _V)
+        {
+            ::std::apply([&_Out](auto&& ... _X){
+                (::std::invoke([&_Out](auto&& _Pv, auto&& _Vv){
+                    if constexpr (requires(::std::ostream& _Out, decltype(_Vv) _Vv){ _Out << _Vv; })
+                    {
+                        _Out << _Pv << "=" << std::boolalpha << _Vv << ", ";
+                    }
+                    else if constexpr (requires(decltype(_Vv) _Vv){ ::std::begin(_Vv); ::std::end(_Vv); })
+                    {
+                        _Out << _Pv << "=[";
+                        auto _It(::std::begin(_Vv));
+                        auto _End(::std::end(_Vv));
+                        if (_It != _End)
+                        {
+                            _Out << *_It;
+                            while (++_It != _End)
+                            {
+                                _Out << ", " << *_It;
+                            }
+                        }
+                        _Out << "], ";
+                    }
+                    else
+                    {
+                        _Out << _Pv << "=<not-printable>, ";
+                    }
+                }, _P{}, _X), ...);
+            }, _V._Values);
+            return _Out;
         }
     };
 
