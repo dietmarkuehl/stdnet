@@ -1,59 +1,34 @@
+#include <any>
 #include <iostream>
-#include <stdexec/execution.hpp>
-#include <exec/async_scope.hpp>
-#include <stdnet/internet.hpp>
-#include <stdnet/io_context.hpp>
-#include <stdnet/socket.hpp>
+#include <stdexcept>
+#include "stdnet/preferences.hpp"
+#include "stdnet/preconnection.hpp"
 
-template <typename E>
-struct error_handler_base
+template <typename T>
+T extract(::std::any const& v)
 {
-    void operator()(E) {}
-};
-template <typename... E>
-struct error_handler
-    : error_handler_base<E>...
-{
-};
+    return v.has_value()
+        ? ::std::any_cast<T>(v)
+        : throw std::runtime_error("no value")
+        ;
+}
 
 int main()
 {
-    std::cout << std::unitbuf;
     try
     {
-        exec::async_scope         scope;
-        stdnet::io_context        context;
-        stdnet::ip::tcp::endpoint endpoint(stdnet::ip::address_v4::any(), 12345);
-        stdnet::ip::tcp::acceptor acceptor(context, endpoint);
+        ::stdnet::transport_properties tp;
+        tp.set(::stdnet::reliability, ::stdnet::preference::prohibit);
+        tp.push_back(::stdnet::interface, "eth0");
+        tp.push_back(::stdnet::interface, "wifi0");
 
-        tag_invoke(::stdnet::async_accept, acceptor);
-        auto s = stdnet::async_accept(acceptor);
-        auto s1 = stdnet::async_accept(::stdexec::just(), acceptor);
-        //auto s2 = stdexec::just() | stdnet::async_accept(acceptor);
-        static_assert(::stdexec::sender<decltype(s)>);
-        static_assert(::stdexec::sender<decltype(s1)>);
-
-        std::cout << "spawning accept\n";
-        scope.spawn(stdnet::async_accept(acceptor)
-                    | stdexec::then([](auto&&...){ std::cout << "accepted\n"; })
-                    | stdexec::upon_error(error_handler<std::error_code, std::exception_ptr>())
-                    );
-        std::cout << "running context\n";
-        context.run();
-        std::cout << "running done\n";
-
-#if 0
-        ::sockaddr_storage addr{};
-        ::socklen_t        len(sizeof(addr));
-        if (::accept(acceptor.native_handle(), reinterpret_cast<::sockaddr*>(&addr), &len) < 0)
-        {
-            std::cout << "ERROR: " << ::std::strerror(errno) << "\n";
-        }
-#endif
+        std::cout << "transport-properties=" << tp << "\n";
+        std::cout << "security_parameters=" << ::stdnet::security_parameters{} << "\n";
+        std::cout << "message-properties=" << ::stdnet::message_properties{} << "\n";
     }
-    catch (std::exception const& ex)
+    catch(::std::exception const& ex)
     {
-        std::cout << "EXCEPTION: " << ex.what() << "\n";
-        abort();
+        ::std::cerr << ex.what() << '\n';
     }
+    
 }
