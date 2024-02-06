@@ -30,6 +30,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <span>
 #include <tuple>
 
 // ----------------------------------------------------------------------------
@@ -98,7 +99,8 @@ namespace stdnet
     class properties
     {
     public:
-        ::std::tuple<typename _P::value_type...> _Values;
+        using _Tuple = ::std::tuple<typename _P::value_type...>;
+        _Tuple _Values;
         properties()
             : _Values(_P::get_default()...)
         {
@@ -107,7 +109,15 @@ namespace stdnet
         template <typename _Key>
         auto get(_Key const&)
         {
-            return ::std::get<_MapKey<_Key, ::std::index_sequence_for<_P...>, _P...>::value()>(this->_Values);
+            constexpr int _Index(_MapKey<_Key, ::std::index_sequence_for<_P...>, _P...>::value());
+            using _Type = ::std::tuple_element_t<_Index, _Tuple>;
+            auto&& _Rc(::std::get<_Index>(this->_Values));
+            if constexpr (::std::same_as<_Type, ::std::string>)
+                return _Rc;
+            else if constexpr (requires(_Type _V){ _V.begin(); _V.end(); })
+                return ::std::span(_Rc);
+            else
+                return _Rc;
         }
         template <typename _Key, typename _Value>
         auto set(_Key const&, _Value const& _V)

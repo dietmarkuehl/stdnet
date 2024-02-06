@@ -79,14 +79,17 @@ namespace stdnet
     enum class group_type
     {
     };
+    inline ::std::ostream& operator<< (std::ostream& _Out, group_type) { return _Out; }
 
     enum class cipher_suite_type
     {
     };
+    inline ::std::ostream& operator<< (std::ostream& _Out, cipher_suite_type) { return _Out; }
 
     enum class signature_algorithm_type
     {
     };
+    inline ::std::ostream& operator<< (std::ostream& _Out, signature_algorithm_type) { return _Out; }
 
     // ------------------------------------------------------------------------
 

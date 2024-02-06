@@ -21,12 +21,10 @@ int main()
         tp.set(::stdnet::reliability, ::stdnet::preference::prohibit);
         tp.push_back(::stdnet::interface, "eth0");
         tp.push_back(::stdnet::interface, "wifi0");
-        ::std::cout << "reliability=" << tp.get(::stdnet::reliability) << "\n";
-        ::std::cout << "reliability=" << extract<::stdnet::preference>(tp.get("reliability")) << "\n";
-        ::std::cout << "preserve_msg_boundaries=" << tp.get(::stdnet::preserve_msg_boundaries) << "\n";
-        ::std::cout << "preserve_msg_boundaries=" << extract<::stdnet::preference>(tp.get("preserve_msg_boundaries")) << "\n";
 
-        std::cout << tp << "\n";
+        std::cout << "transport-properties=" << tp << "\n";
+        std::cout << "security_parameters=" << ::stdnet::security_parameters{} << "\n";
+        std::cout << "message-properties=" << ::stdnet::message_properties{} << "\n";
     }
     catch(::std::exception const& ex)
     {
