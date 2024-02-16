@@ -155,7 +155,7 @@ int main(int ac, char* av[])
 
     char buffer[64];
     scope.spawn(
-        read_sender(context.eb, 0, buffer, sizeof(buffer))
+        read_sender{context.eb, 0, buffer, sizeof(buffer)}
         | stdexec::then([buffer = +buffer, &scope](int n){
             std::cout << "read='" << std::string_view(buffer, n) << "'\n";
             scope.get_stop_source().request_stop();
