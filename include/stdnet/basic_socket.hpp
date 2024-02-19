@@ -22,13 +22,38 @@
 
 #include <stdnet/netfwd.hpp>
 #include <stdnet/socket_base.hpp>
+#include <stdnet/io_context_scheduler.hpp>
 
 // ----------------------------------------------------------------------------
 
-template <typename Protocol>
+template <typename _Protocol>
 class stdnet::basic_socket
     : public ::stdnet::socket_base
 {
+public:
+    using scheduler_type     = ::stdnet::_Hidden::_Io_context_scheduler;
+    using protocol_type      = _Protocol;
+
+private:
+    ::stdnet::_Hidden::_Context_base* _D_context;
+    protocol_type                     _D_protocol{::stdnet::ip::tcp::v6()}; 
+    ::stdnet::_Hidden::_Socket_id     _D_id{};
+
+public:
+    basic_socket()
+        : _D_context(nullptr)
+    {
+    }
+    basic_socket(::stdnet::_Hidden::_Context_base* _Context, ::stdnet::_Hidden::_Socket_id _Id)
+        : _D_context(_Context)
+        , _D_id(_Id)
+    {
+    }
+    auto get_scheduler() noexcept -> scheduler_type
+    {
+        return scheduler_type{this->_D_context};
+    }
+    auto _Id() const -> ::stdnet::_Hidden::_Socket_id { return this->_D_id; }
 };
 
 

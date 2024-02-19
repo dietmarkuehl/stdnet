@@ -1,6 +1,9 @@
 #include <iostream>
+#include <string_view>
 #include <stdexec/execution.hpp>
 #include <exec/async_scope.hpp>
+#include <exec/task.hpp>
+#include <stdnet/buffer.hpp>
 #include <stdnet/internet.hpp>
 #include <stdnet/io_context.hpp>
 #include <stdnet/socket.hpp>
@@ -8,13 +11,34 @@
 template <typename E>
 struct error_handler_base
 {
-    void operator()(E) {}
+    void operator()(E)
+    {
+        std::cout << "error_handler\n";
+    }
 };
 template <typename... E>
 struct error_handler
     : error_handler_base<E>...
 {
 };
+
+auto make_client(auto client) -> exec::task<void>
+{
+    try
+    {
+        char buffer[8];
+        while (auto size = co_await stdnet::async_receive(client, ::stdnet::mutable_buffer(buffer)))
+        {
+            std::cout << "received<" << size << ">(" << std::string_view(+buffer, size) << ")\n";
+        }
+        std::cout << "client done\n";
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+    
+}
 
 int main()
 {
@@ -35,21 +59,15 @@ int main()
 
         std::cout << "spawning accept\n";
         scope.spawn(stdnet::async_accept(acceptor)
-                    | stdexec::then([](auto&&...){ std::cout << "accepted\n"; })
+                    | stdexec::then([&scope](auto client){
+                        std::cout << "accepted\n";
+                        scope.spawn(make_client(::std::move(client)));
+                        })
                     | stdexec::upon_error(error_handler<std::error_code, std::exception_ptr>())
                     );
         std::cout << "running context\n";
         context.run();
         std::cout << "running done\n";
-
-#if 0
-        ::sockaddr_storage addr{};
-        ::socklen_t        len(sizeof(addr));
-        if (::accept(acceptor.native_handle(), reinterpret_cast<::sockaddr*>(&addr), &len) < 0)
-        {
-            std::cout << "ERROR: " << ::std::strerror(errno) << "\n";
-        }
-#endif
     }
     catch (std::exception const& ex)
     {

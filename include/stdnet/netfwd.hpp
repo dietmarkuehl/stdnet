@@ -32,9 +32,9 @@ namespace stdnet
             _Invalid = ::std::numeric_limits<::std::uint_least32_t>::max()
         };
     }
-    namespace _Hidden_abstract
+    namespace _Hidden
     {
-        class _Context;
+        class _Context_base;
     }
     using _Stdnet_native_handle_type = int;
     inline constexpr _Stdnet_native_handle_type _Stdnet_invalid_handle{-1};

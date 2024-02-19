@@ -34,7 +34,10 @@ public:
     using protocol_type = _Protocol;
     using endpoint_type = typename protocol_type::endpoint;
 
-    basic_stream_socket(::stdnet::_Hidden_abstract::_Context*, ::stdnet::_Hidden::_Socket_id)
+    basic_stream_socket(basic_stream_socket&&) = default;
+    basic_stream_socket& operator= (basic_stream_socket&&) = default;
+    basic_stream_socket(::stdnet::_Hidden::_Context_base* _Context, ::stdnet::_Hidden::_Socket_id _Id)
+        : basic_socket<_Protocol>(_Context, _Id)
     {
     }
     basic_stream_socket(::stdnet::io_context&, endpoint_type const&)
