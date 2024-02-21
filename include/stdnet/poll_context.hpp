@@ -179,7 +179,7 @@ struct stdnet::_Hidden::_Poll_context final
         return true;
     }
 
-    auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void override final
+    auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void override final
     {
         //-dk:TODO
     }

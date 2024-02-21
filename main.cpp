@@ -2,6 +2,7 @@
 #include <string_view>
 #include <stdexec/execution.hpp>
 #include <exec/async_scope.hpp>
+#include <exec/repeat_effect_until.hpp>
 #include <exec/task.hpp>
 #include <stdnet/buffer.hpp>
 #include <stdnet/internet.hpp>
@@ -22,14 +23,20 @@ struct error_handler
 {
 };
 
-auto make_client(auto client) -> exec::task<void>
+auto make_client(exec::async_scope& scope, auto client) -> exec::task<void>
 {
     try
     {
         char buffer[8];
         while (auto size = co_await stdnet::async_receive(client, ::stdnet::mutable_buffer(buffer)))
         {
-            std::cout << "received<" << size << ">(" << std::string_view(+buffer, size) << ")\n";
+            std::string_view message(+buffer, size);
+            std::cout << "received<" << size << ">(" << message << ")\n";
+            if (message.starts_with("exit"))
+            {
+                std::cout << "exiting\n";
+                scope.get_stop_source().request_stop();
+            }
         }
         std::cout << "client done\n";
     }
@@ -58,13 +65,19 @@ int main()
         static_assert(::stdexec::sender<decltype(s1)>);
 
         std::cout << "spawning accept\n";
-        scope.spawn(stdnet::async_accept(acceptor)
-                    | stdexec::then([&scope](auto client){
-                        std::cout << "accepted\n";
-                        scope.spawn(make_client(::std::move(client)));
-                        })
-                    | stdexec::upon_error(error_handler<std::error_code, std::exception_ptr>())
+        scope.spawn(std::invoke([](auto& scope, auto& acceptor)->exec::task<void>{
+            while (true)
+            {
+                scope.spawn(
+                    make_client(scope, co_await stdnet::async_accept(acceptor))
+                    | stdexec::upon_stopped([]{ std::cout << "client cancelled\n"; })
                     );
+                std::cout << "accepted a client\n";
+            }
+        }, scope, acceptor)
+        | stdexec::upon_stopped([]{ std::cout << "acceptor cancelled\n"; })
+        );
+
         std::cout << "running context\n";
         context.run();
         std::cout << "running done\n";

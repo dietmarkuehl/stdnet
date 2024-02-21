@@ -91,18 +91,39 @@ namespace stdnet
                 , _State_base<_Receiver>
             {
                 struct _Cancel_callback
+                    : ::stdnet::_Hidden::_Io_base
                 {
                     _State* _D_state;
-                    auto operator()() const
+                    _Cancel_callback(_State* _S)
+                        : ::stdnet::_Hidden::_Io_base(::stdnet::_Hidden::_Socket_id(), 0)
+                        , _D_state(_S)
+                    {
+                    }
+                    auto operator()()
                     {
                         if (1 < ++this->_D_state->_D_outstanding)
                         {
-                            this->_D_state->_D_acceptor.get_scheduler()._Cancel(this->_D_state);
+                            this->_D_state->_D_acceptor.get_scheduler()._Cancel(this, this->_D_state);
                         }
+                    }
+                    auto _Complete() -> void override final
+                    {
+                        if (0u == --this->_D_state->_D_outstanding)
+                        {
+                            ::stdexec::set_stopped(::std::move(this->_D_state->_D_receiver));
+                        }
+                    }
+                    auto _Error(::std::error_code) -> void override final
+                    {
+                        this->_Complete();
+                    }
+                    auto _Cancel() -> void override final
+                    {
+                        this->_Complete();
                     }
                 };
                 using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream&>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
-                using _Stop_token = decltype(::stdexec::get_stop_token(::std::declval<_Receiver const&>()));
+                using _Stop_token = decltype(::stdexec::get_stop_token(::stdexec::get_env(::std::declval<_Receiver const&>())));
                 using _Callback = typename _Stop_token::template callback_type<_Cancel_callback>;
 
                 ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
@@ -125,10 +146,16 @@ namespace stdnet
                 }
                 auto _Start() -> void override final
                 {
+                    auto _Token(::stdexec::get_stop_token(::stdexec::get_env(this->_D_receiver)));
                     ++this->_D_outstanding;
+                    if (_Token.stop_requested())
+                    {
+                        this->_Cancel();
+                        return;
+                    }
                     if (this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), this))
                     {
-                        this->_D_callback.emplace(::stdexec::get_stop_token(this->_D_receiver), _Cancel_callback{this});
+                        this->_D_callback.emplace(_Token, _Cancel_callback(this));
                     }
                 }
                 auto _Complete() -> void override final
@@ -243,18 +270,39 @@ namespace stdnet
                 , _State_base<_Receiver>
             {
                 struct _Cancel_callback
+                    : ::stdnet::_Hidden::_Io_base
                 {
                     _State* _D_state;
-                    auto operator()() const
+                    _Cancel_callback(_State* _S)
+                        : ::stdnet::_Hidden::_Io_base(::stdnet::_Hidden::_Socket_id(), 0)
+                        , _D_state(_S)
+                    {
+                    }
+                    auto operator()()
                     {
                         if (1 < ++this->_D_state->_D_outstanding)
                         {
-                            this->_D_state->_D_stream.get_scheduler()._Cancel(this->_D_state);
+                            this->_D_state->_D_stream.get_scheduler()._Cancel(this, this->_D_state);
                         }
+                    }
+                    auto _Complete() -> void override final
+                    {
+                        if (0u == --this->_D_state->_D_outstanding)
+                        {
+                            ::stdexec::set_stopped(::std::move(this->_D_state->_D_receiver));
+                        }
+                    }
+                    auto _Error(::std::error_code) -> void override final
+                    {
+                        this->_Complete();
+                    }
+                    auto _Cancel() -> void override final
+                    {
+                        this->_Complete();
                     }
                 };
                 using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream&>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
-                using _Stop_token = decltype(::stdexec::get_stop_token(::std::declval<_Receiver const&>()));
+                using _Stop_token = decltype(::stdexec::get_stop_token(::stdexec::get_env(::std::declval<_Receiver const&>())));
                 using _Callback = typename _Stop_token::template callback_type<_Cancel_callback>;
 
                 ::stdnet::basic_stream_socket<_Protocol>& _D_stream;
@@ -281,10 +329,16 @@ namespace stdnet
                 }
                 auto _Start() -> void override final
                 {
+                    auto _Token(::stdexec::get_stop_token(::stdexec::get_env(this->_D_receiver)));
                     ++this->_D_outstanding;
+                    if (_Token.stop_requested())
+                    {
+                        this->_Cancel();
+                        return;
+                    }
                     if (this->_D_stream.get_scheduler()._Receive(this))
                     {
-                        this->_D_callback.emplace(::stdexec::get_stop_token(this->_D_receiver), _Cancel_callback{this});
+                        this->_D_callback.emplace(_Token, _Cancel_callback(this));
                     }
                 }
                 auto _Complete() -> void override final
@@ -374,8 +428,8 @@ auto ::stdnet::socket_category() noexcept -> ::std::error_category const&
     struct _Category
         : ::std::error_category
     {
-        auto name() const noexcept -> char const* override { return "socket"; }
-        auto message(int _Error) const -> ::std::string override
+        auto name() const noexcept -> char const* override final { return "socket"; }
+        auto message(int _Error) const -> ::std::string override final
         {
             switch (::stdnet::socket_errc(_Error))
             {

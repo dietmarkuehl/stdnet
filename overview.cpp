@@ -169,6 +169,7 @@ int main(int ac, char* av[])
                 std::cout << "time passed\n";
             }
         }, context.eb, ac == 2? std::stoi(av[1]): 1)
+        | stdexec::upon_stopped([]{ std::cout << "task cancelled\n"; })
     );
 
     std::cout << "starting loop\n";

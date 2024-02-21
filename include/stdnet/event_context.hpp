@@ -33,6 +33,7 @@
 #include <memory>
 #include <new>
 #include <system_error>
+#include <cassert>
 #include <cerrno>
 #include <cstdlib>
 #include <event2/event.h>
@@ -105,7 +106,7 @@ private:
 
     auto run_one() -> ::std::size_t override;
 
-    auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void override;
+    auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void override;
     auto _Accept(_Accept_operation*) -> bool override;
     auto _Receive(_Receive_operation*) -> bool override;
     auto _Send(_Send_operation*) -> bool override;
@@ -205,9 +206,15 @@ inline auto stdnet::_Hidden::_Event_context::run_one() -> ::std::size_t
     return 0 == event_base_loop(this->_Context.get(), EVLOOP_ONCE)? 1u: 0;
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Cancel(::stdnet::_Hidden::_Io_base*) -> void
+inline auto stdnet::_Hidden::_Event_context::_Cancel(::stdnet::_Hidden::_Io_base* _Cancel_op,
+                                                     ::stdnet::_Hidden::_Io_base* _Op) -> void
 {
-    //-dk:TODO
+    if (-1 == event_del(static_cast<::event *>(_Op->_Extra.get())))
+    {
+        assert("deleting a libevent event failed!" == nullptr);
+    }
+    _Cancel_op->_Cancel();
+    _Op->_Cancel();
 }
 
 inline auto stdnet::_Hidden::_Event_context::_Accept(_Accept_operation* _Op) -> bool

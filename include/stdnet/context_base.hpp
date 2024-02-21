@@ -65,7 +65,7 @@ struct stdnet::_Hidden::_Context_base
 
     virtual auto run_one() -> ::std::size_t = 0;
 
-    virtual auto _Cancel(::stdnet::_Hidden::_Io_base*) -> void = 0;
+    virtual auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void = 0;
     virtual auto _Accept(_Accept_operation*) -> bool = 0;
     virtual auto _Receive(_Receive_operation*) -> bool = 0;
     virtual auto _Send(_Send_operation*) -> bool = 0;

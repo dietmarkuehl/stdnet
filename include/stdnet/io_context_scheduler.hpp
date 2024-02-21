@@ -48,9 +48,9 @@ public:
     {
     }
 
-    auto _Cancel(_Hidden::_Io_base* _Op) -> void
+    auto _Cancel(_Hidden::_Io_base* _Cancel_op, _Hidden::_Io_base* _Op) -> void
     {
-        this->_D_context->_Cancel(_Op);
+        this->_D_context->_Cancel(_Cancel_op, _Op);
     }
     auto _Accept(::stdnet::_Hidden::_Socket_id _Id, _Hidden::_Context_base::_Accept_operation* _Op) -> bool
     {
