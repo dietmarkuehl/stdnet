@@ -24,7 +24,7 @@
 #include <stdnet/netfwd.hpp>
 #include <stdnet/context_base.hpp>
 #include <stdnet/io_context_scheduler.hpp>
-#include <stdnet/event_context.hpp>
+#include <stdnet/libevent_context.hpp>
 #include <stdnet/poll_context.hpp>
 #include <stdnet/basic_stream_socket.hpp>
 #include <stdnet/container.hpp>
@@ -48,7 +48,7 @@ class stdnet::io_context
 {
 private:
     ::std::unique_ptr<::stdnet::_Hidden::_Context_base> _D_ownedx{new ::stdnet::_Hidden::_Poll_context()};
-    ::std::unique_ptr<::stdnet::_Hidden::_Context_base> _D_owned{new ::stdnet::_Hidden::_Event_context()};
+    ::std::unique_ptr<::stdnet::_Hidden::_Context_base> _D_owned{new ::stdnet::_Hidden::_Libevent_context()};
     ::stdnet::_Hidden::_Context_base&                   _D_context{*this->_D_owned};
 
 public:

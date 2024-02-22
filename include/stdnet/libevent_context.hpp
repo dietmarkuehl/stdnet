@@ -1,4 +1,4 @@
-// stdnet/event_context.hpp                                           -*-C++-*-
+// stdnet/libevent_context.hpp                                        -*-C++-*-
 // ----------------------------------------------------------------------------
 /*
  * Copyright (c) 2023 Dietmar Kuehl http://www.dietmar-kuehl.de
@@ -17,8 +17,8 @@
  */
 // ----------------------------------------------------------------------------
 
-#ifndef INCLUDED_STDNET_EVENT_CONTEXT
-#define INCLUDED_STDNET_EVENT_CONTEXT
+#ifndef INCLUDED_STDNET_LIBEVENT_CONTEXT
+#define INCLUDED_STDNET_LIBEVENT_CONTEXT
 
 #include <stdnet/netfwd.hpp>
 #include <stdnet/container.hpp>
@@ -40,33 +40,33 @@ namespace stdnet::_Hidden
 {
     extern "C"
     {
-        auto _Event_callback(int, short, void*) -> void;
+        auto _Libevent_callback(int, short, void*) -> void;
     }
-    class _Event_error_category_t;
-    class _Event_record;
-    class _Event_context;
+    class _Libevent_error_category_t;
+    class _Libevent_record;
+    class _Libevent_context;
 
-    auto _Event_error_category() -> _Event_error_category_t const&;
+    auto _Libevent_error_category() -> _Libevent_error_category_t const&;
 }
 
 // ----------------------------------------------------------------------------
 
-class stdnet::_Hidden::_Event_error_category_t
+class stdnet::_Hidden::_Libevent_error_category_t
     : public ::std::error_category
 {
     auto name() const noexcept -> char const* override { return "libevent-category"; }
     auto message(int _E) const -> ::std::string override { return evutil_socket_error_to_string(_E); }
 };
 
-inline auto stdnet::_Hidden::_Event_error_category() -> stdnet::_Hidden::_Event_error_category_t const&
+inline auto stdnet::_Hidden::_Libevent_error_category() -> stdnet::_Hidden::_Libevent_error_category_t const&
 {
-    static stdnet::_Hidden::_Event_error_category_t _Rc{};
+    static stdnet::_Hidden::_Libevent_error_category_t _Rc{};
     return _Rc;
 }
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Event_callback(int, short, void* _Arg) -> void
+inline auto stdnet::_Hidden::_Libevent_callback(int, short, void* _Arg) -> void
 {
     auto _Op(static_cast<::stdnet::_Hidden::_Io_base*>(_Arg));
     _Op->_Work(*_Op->_Context, _Op);
@@ -74,20 +74,20 @@ inline auto stdnet::_Hidden::_Event_callback(int, short, void* _Arg) -> void
 
 // ----------------------------------------------------------------------------
 
-struct stdnet::_Hidden::_Event_record final
+struct stdnet::_Hidden::_Libevent_record final
 {
-    _Event_record(::stdnet::_Stdnet_native_handle_type _H): _Handle(_H) {}
+    _Libevent_record(::stdnet::_Stdnet_native_handle_type _H): _Handle(_H) {}
     ::stdnet::_Stdnet_native_handle_type                   _Handle;
     bool                                                   _Blocking{true};
 };
 
 // ----------------------------------------------------------------------------
 
-class stdnet::_Hidden::_Event_context
+class stdnet::_Hidden::_Libevent_context
     : public ::stdnet::_Hidden::_Context_base
 {
 private:
-    ::stdnet::_Hidden::_Container<::stdnet::_Hidden::_Event_record> _D_sockets;
+    ::stdnet::_Hidden::_Container<::stdnet::_Hidden::_Libevent_record> _D_sockets;
     ::std::unique_ptr<::event_base, auto(*)(event_base*)->void>    _Context;
 
     auto _Make_socket(int) -> ::stdnet::_Hidden::_Socket_id override;
@@ -106,30 +106,30 @@ private:
     auto _Send(_Send_operation*) -> bool override;
 
 public:
-    _Event_context();
-    _Event_context(::event_base*);
+    _Libevent_context();
+    _Libevent_context(::event_base*);
 };
 
 // ----------------------------------------------------------------------------
 
-inline stdnet::_Hidden::_Event_context::_Event_context()
+inline stdnet::_Hidden::_Libevent_context::_Libevent_context()
     : _Context(::event_base_new(), +[](::event_base* _C){ ::event_base_free(_C); })
 {
 }
 
-inline stdnet::_Hidden::_Event_context::_Event_context(::event_base* _C)
+inline stdnet::_Hidden::_Libevent_context::_Libevent_context(::event_base* _C)
     : _Context(_C, +[](::event_base*){})
 {
 }
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Event_context::_Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id
+inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id
 {
     return this->_D_sockets._Insert(_Fd);
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Make_socket(int _D, int _T, int _P, ::std::error_code& _Error)
+inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _D, int _T, int _P, ::std::error_code& _Error)
     -> ::stdnet::_Hidden::_Socket_id
 {
     int _Fd(::socket(_D, _T, _P));
@@ -141,7 +141,7 @@ inline auto stdnet::_Hidden::_Event_context::_Make_socket(int _D, int _T, int _P
     return this->_Make_socket(_Fd);
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error) -> void
+inline auto stdnet::_Hidden::_Libevent_context::_Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error) -> void
 {
     _Stdnet_native_handle_type _Handle(this->_D_sockets[_Id]._Handle);
     this->_D_sockets._Erase(_Id);
@@ -151,12 +151,12 @@ inline auto stdnet::_Hidden::_Event_context::_Release(::stdnet::_Hidden::_Socket
     }
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Native_handle(::stdnet::_Hidden::_Socket_id _Id) -> _Stdnet_native_handle_type
+inline auto stdnet::_Hidden::_Libevent_context::_Native_handle(::stdnet::_Hidden::_Socket_id _Id) -> _Stdnet_native_handle_type
 {
     return this->_D_sockets[_Id]._Handle;
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Set_option(::stdnet::_Hidden::_Socket_id _Id,
+inline auto stdnet::_Hidden::_Libevent_context::_Set_option(::stdnet::_Hidden::_Socket_id _Id,
                                                          int                           _Level,
                                                          int                           _Name,
                                                          void const*                   _Data,
@@ -170,7 +170,7 @@ inline auto stdnet::_Hidden::_Event_context::_Set_option(::stdnet::_Hidden::_Soc
     }
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Bind(::stdnet::_Hidden::_Socket_id _Id,
+inline auto stdnet::_Hidden::_Libevent_context::_Bind(::stdnet::_Hidden::_Socket_id _Id,
                                                    ::stdnet::ip::basic_endpoint<::stdnet::ip::tcp> const& _Endpoint,
                                                    ::std::error_code& _Error)
             -> void
@@ -181,7 +181,7 @@ inline auto stdnet::_Hidden::_Event_context::_Bind(::stdnet::_Hidden::_Socket_id
     }
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Listen(::stdnet::_Hidden::_Socket_id _Id,
+inline auto stdnet::_Hidden::_Libevent_context::_Listen(::stdnet::_Hidden::_Socket_id _Id,
                                                      int                           _No,
                                                      ::std::error_code&            _Error)
     -> void
@@ -192,7 +192,7 @@ inline auto stdnet::_Hidden::_Event_context::_Listen(::stdnet::_Hidden::_Socket_
     }
 }
 
-inline auto stdnet::_Hidden::_Event_context::run_one() -> ::std::size_t
+inline auto stdnet::_Hidden::_Libevent_context::run_one() -> ::std::size_t
 {
     // event_base_loop(..., EVLOOP_ONCE) may process multiple events but
     // it doesn't say how many. As a result, the return from run_one() may
@@ -200,7 +200,7 @@ inline auto stdnet::_Hidden::_Event_context::run_one() -> ::std::size_t
     return 0 == event_base_loop(this->_Context.get(), EVLOOP_ONCE)? 1u: 0;
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Cancel(::stdnet::_Hidden::_Io_base* _Cancel_op,
+inline auto stdnet::_Hidden::_Libevent_context::_Cancel(::stdnet::_Hidden::_Io_base* _Cancel_op,
                                                      ::stdnet::_Hidden::_Io_base* _Op) -> void
 {
     if (-1 == event_del(static_cast<::event *>(_Op->_Extra.get())))
@@ -211,13 +211,13 @@ inline auto stdnet::_Hidden::_Event_context::_Cancel(::stdnet::_Hidden::_Io_base
     _Op->_Cancel();
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Accept(_Accept_operation* _Op) -> bool
+inline auto stdnet::_Hidden::_Libevent_context::_Accept(_Accept_operation* _Op) -> bool
 {
     auto _Handle(this->_Native_handle(_Op->_Id));
-    ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ, _Event_callback, _Op));
+    ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ, _Libevent_callback, _Op));
     if (_Ev == nullptr)
     {
-        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Event_error_category()));
+        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Libevent_error_category()));
         return false;
     }
     _Op->_Context = this;
@@ -262,13 +262,13 @@ inline auto stdnet::_Hidden::_Event_context::_Accept(_Accept_operation* _Op) -> 
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Event_context::_Receive(_Receive_operation* _Op) -> bool
+inline auto stdnet::_Hidden::_Libevent_context::_Receive(_Receive_operation* _Op) -> bool
 {
     auto _Handle(this->_Native_handle(_Op->_Id));
-    ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ, _Event_callback, _Op));
+    ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ, _Libevent_callback, _Op));
     if (_Ev == nullptr)
     {
-        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Event_error_category()));
+        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Libevent_error_category()));
         return false;
     }
     _Op->_Context = this;
@@ -312,7 +312,7 @@ inline auto stdnet::_Hidden::_Event_context::_Receive(_Receive_operation* _Op) -
     return true;
 }
 
-inline auto stdnet::_Hidden::_Event_context::_Send(_Send_operation*) -> bool 
+inline auto stdnet::_Hidden::_Libevent_context::_Send(_Send_operation*) -> bool 
 {
     return {};
 }
