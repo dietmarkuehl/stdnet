@@ -73,7 +73,7 @@ int main()
         stdnet::ip::tcp::endpoint endpoint(stdnet::ip::address_v4::any(), 12345);
         stdnet::ip::tcp::acceptor acceptor(context, endpoint);
 
-        tag_invoke(::stdnet::async_accept, acceptor);
+        //tag_invoke(::stdnet::async_accept, acceptor);
         auto s = stdnet::async_accept(acceptor);
         auto s1 = stdnet::async_accept(::stdexec::just(), acceptor);
         //auto s2 = stdexec::just() | stdnet::async_accept(acceptor);

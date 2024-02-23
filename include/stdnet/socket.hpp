@@ -22,6 +22,11 @@
 #pragma once
 
 #include <stdnet/netfwd.hpp>
+#include <stdnet/cpo.hpp>
+#include <stdnet/socket_base.hpp>
+#include <stdnet/basic_socket.hpp>
+#include <stdnet/basic_stream_socket.hpp>
+
 #include <stdexec/functional.hpp>
 #include <system_error>
 #include <type_traits>
@@ -31,201 +36,53 @@
 #include <atomic>
 #include <string>
 
-#include <stdnet/socket_base.hpp>
-#include <stdnet/basic_socket.hpp>
-#include <stdnet/basic_stream_socket.hpp>
-
 // ----------------------------------------------------------------------------
 
 namespace stdnet
 {
-    enum class socket_errc
-    {
-        already_open = 1,
-        not_found
-    };
-
+    enum class socket_errc: int;
     auto socket_category() noexcept -> ::std::error_category const&;
 
-    namespace _Stdnet_hidden
+    namespace _Hidden
     {
-        struct async_accept_t
+        struct _Accept_desc;
+        struct _Connect_desc;
+        struct _Send_desc;
+        struct _Receive_desc;
+    }
+
+    using async_accept_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Accept_desc>;
+    inline constexpr async_accept_t async_accept{};
+}
+
+struct stdnet::_Hidden::_Accept_desc
+{
+    using _Operation = ::stdnet::_Hidden::_Context_base::_Accept_operation;
+    template <typename _Acceptor>
+    struct _Data
+    {
+        using _Acceptor_t = ::std::remove_cvref_t<_Acceptor>;
+        using _Socket_t = _Acceptor_t::socket_type;
+        using _Completion_signature = ::stdexec::set_value_t(_Socket_t);
+
+        _Acceptor_t& _D_acceptor;
+
+        auto _Id() const { return this->_D_acceptor._Id(); }
+        auto _Events() const { return POLLIN; }
+        auto _Get_scheduler() { return this->_D_acceptor.get_scheduler(); }
+        auto _Set_value(_Operation& _O, auto&& _Receiver)
         {
-            template <typename _Receiver>
-            struct _State_base
-            {
-                _Receiver _D_receiver;
-                template <typename _RT>
-                _State_base(_RT&& _R)
-                    : _D_receiver(::std::forward<_RT>(_R))
-                {
-                }
-                virtual auto _Start() -> void = 0;
-            };
-            template <typename _Receiver>
-            struct _Upstream_receiver
-            {
-                using is_receiver = void;
-                _State_base<_Receiver>* _D_state;
-                friend auto tag_invoke(::stdexec::set_value_t, _Upstream_receiver&& _Self) noexcept -> void
-                {
-                    _Self._D_state->_Start();
-                }
-                template <typename _Error>
-                friend auto tag_invoke(::stdexec::set_error_t, _Upstream_receiver&& _Self, _Error&& _E) -> void
-                {
-                    ::stdexec::set_error(::std::move(_Self._D_state->_D_receiver), ::std::forward<_Error>(_E));
-                }
-                friend auto tag_invoke(::stdexec::set_stopped_t, _Upstream_receiver&& _Self) -> void
-                {
-                    ::stdexec::set_stopped(::std::move(_Self._D_state->_D_receiver));
-                }
-                friend auto tag_invoke(::stdexec::get_env_t, _Upstream_receiver const& _Self) noexcept
-                {
-                    return ::stdexec::get_env(_Self._D_state->_D_receiver);
-                }
-            };
-            template <typename _Protocol, typename _Receiver, typename _Upstream>
-            struct _State
-                : ::stdnet::_Hidden::_Context_base::_Accept_operation
-                , _State_base<_Receiver>
-            {
-                struct _Cancel_callback
-                    : ::stdnet::_Hidden::_Io_base
-                {
-                    _State* _D_state;
-                    _Cancel_callback(_State* _S)
-                        : ::stdnet::_Hidden::_Io_base(::stdnet::_Hidden::_Socket_id(), 0)
-                        , _D_state(_S)
-                    {
-                    }
-                    auto operator()()
-                    {
-                        if (1 < ++this->_D_state->_D_outstanding)
-                        {
-                            this->_D_state->_D_acceptor.get_scheduler()._Cancel(this, this->_D_state);
-                        }
-                    }
-                    auto _Complete() -> void override final
-                    {
-                        if (0u == --this->_D_state->_D_outstanding)
-                        {
-                            ::stdexec::set_stopped(::std::move(this->_D_state->_D_receiver));
-                        }
-                    }
-                    auto _Error(::std::error_code) -> void override final
-                    {
-                        this->_Complete();
-                    }
-                    auto _Cancel() -> void override final
-                    {
-                        this->_Complete();
-                    }
-                };
-                using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream&>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
-                using _Stop_token = decltype(::stdexec::get_stop_token(::stdexec::get_env(::std::declval<_Receiver const&>())));
-                using _Callback = typename _Stop_token::template callback_type<_Cancel_callback>;
+            ::stdexec::set_value(::std::move(_Receiver), ::std::move(*::std::get<2>(_O)));
+        }
+        auto _Submit(auto* _Base) -> bool
+        {
+            return this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), _Base);
+        }
+    };
+};
 
-                ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
-                _Upstream_state_t                           _D_state;
-                ::std::optional<_Callback>                  _D_callback;
-                ::std::atomic<int>                          _D_outstanding{};
-
-                template <typename _RT>
-                _State(::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor,
-                       _RT&& _R, _Upstream _Up)
-                    : ::stdnet::_Hidden::_Context_base::_Accept_operation(_Acceptor._Id(), POLLIN)
-                    , _State_base<_Receiver>(::std::forward<_RT>(_R))
-                    , _D_acceptor(_Acceptor)
-                    , _D_state(::stdexec::connect(_Up, _Upstream_receiver<_Receiver>(this)))
-                {
-                }
-                friend auto tag_invoke(::stdexec::start_t, _State& _Self) noexcept -> void
-                {
-                    ::stdexec::start(_Self._D_state);
-                }
-                auto _Start() -> void override final
-                {
-                    auto _Token(::stdexec::get_stop_token(::stdexec::get_env(this->_D_receiver)));
-                    ++this->_D_outstanding;
-                    if (_Token.stop_requested())
-                    {
-                        this->_Cancel();
-                        return;
-                    }
-                    if (this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), this))
-                    {
-                        this->_D_callback.emplace(_Token, _Cancel_callback(this));
-                    }
-                }
-                auto _Complete() -> void override final
-                {
-                    if (0 == --this->_D_outstanding)
-                    {
-                        ::stdexec::set_value(::std::move(this->_D_receiver), ::std::move(*std::get<2>(*this)));
-                    }
-                }
-                auto _Error(::std::error_code _Err) -> void override final
-                {
-                    if (0 == --this->_D_outstanding)
-                    {
-                        ::stdexec::set_error(::std::move(this->_D_receiver), _Err);
-                    }
-                }
-                auto _Cancel() -> void override final
-                {
-                    if (0 == --this->_D_outstanding)
-                    {
-                        ::stdexec::set_stopped(::std::move(this->_D_receiver));
-                    }
-                }
-            };
-            template <typename _Protocol, ::stdexec::sender _Upstream>
-            struct _Sender
-            {
-                using is_sender = void;
-                using completion_signatures = ::stdexec::completion_signatures<
-                    ::stdexec::set_value_t(::stdnet::basic_stream_socket<_Protocol>),
-                    ::stdexec::set_error_t(::std::error_code), //-dk:TODO merge with _Upstream errors
-                    ::stdexec::set_stopped_t()
-                    >;
-                ::stdnet::basic_socket_acceptor<_Protocol>& _D_acceptor;
-                _Upstream                                   _D_upstream;
-                template <typename _Receiver>
-                friend auto tag_invoke(::stdexec::connect_t, _Sender const& _Self, _Receiver&& _R)
-                {
-                    return _State<_Protocol, ::std::remove_cvref_t<_Receiver>, _Upstream>(
-                        _Self._D_acceptor,
-                        ::std::forward<_Receiver>(_R),
-                        _Self._D_upstream
-                        );
-                }
-            };
-
-            template <typename _Protocol>
-            friend auto tag_invoke(async_accept_t, ::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor)
-            {
-                return _Sender<_Protocol, decltype(::stdexec::just())>{_Acceptor, ::stdexec::just()};
-            }
-            template <::stdexec::sender _Upstream, typename _Protocol>
-            friend auto tag_invoke(async_accept_t, _Upstream&& _U, ::stdnet::basic_socket_acceptor<_Protocol>& _Acceptor)
-            {
-                return _Sender<_Protocol, ::std::remove_cvref_t<_Upstream>>{_Acceptor, ::std::forward<_Upstream>(_U)};
-            }
-
-            template <typename _Acceptor_t>
-                requires ::stdexec::tag_invocable<async_accept_t, _Acceptor_t&>
-            auto operator()(_Acceptor_t& _Acceptor) const
-            {
-                return tag_invoke(*this, _Acceptor);
-            }
-            template <::stdexec::sender _Upstream, typename _Acceptor_t>
-                requires ::stdexec::tag_invocable<async_accept_t, _Upstream, _Acceptor_t&>
-            auto operator()(_Upstream&& _U, _Acceptor_t& _Acceptor) const
-            {
-                return tag_invoke(*this, ::std::forward<_Upstream>(_U), _Acceptor);
-            }
-        };
+namespace stdnet::_Stdnet_hidden
+{
         // --------------------------------------------------------------------
 
         struct async_receive_t
@@ -416,14 +273,25 @@ namespace stdnet
         };
 
         // --------------------------------------------------------------------
-    }
+}
+
+namespace stdnet
+{
+#if 0
     using _Stdnet_hidden::async_accept_t;
     inline constexpr async_accept_t async_accept{};
+#endif
     using _Stdnet_hidden::async_receive_t;
     inline constexpr async_receive_t async_receive{};
 }
 
-auto ::stdnet::socket_category() noexcept -> ::std::error_category const&
+enum class stdnet::socket_errc: int
+{
+    already_open = 1,
+    not_found
+};
+
+auto stdnet::socket_category() noexcept -> ::std::error_category const&
 {
     struct _Category
         : ::std::error_category
