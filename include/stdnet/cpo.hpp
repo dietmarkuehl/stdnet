@@ -37,11 +37,11 @@ namespace stdnet::_Hidden
 template <typename _Desc>
 struct stdnet::_Hidden::_Cpo
 {
-    template <typename _Receiver>
+    template <::stdexec::receiver _Receiver>
     struct _State_base
     {
         _Receiver _D_receiver;
-        template <typename _RT>
+        template <::stdexec::receiver _RT>
         _State_base(_RT&& _R)
         : _D_receiver(::std::forward<_RT>(_R))
         {
@@ -49,7 +49,7 @@ struct stdnet::_Hidden::_Cpo
         virtual auto _Start() -> void = 0;
     };
 
-    template <typename _Receiver>
+    template <::stdexec::receiver _Receiver>
     struct _Upstream_receiver
     {
         using is_receiver = void;
@@ -73,7 +73,7 @@ struct stdnet::_Hidden::_Cpo
         }
     };
 
-    template <typename _Data, typename _Receiver, typename _Upstream>
+    template <typename _Data, ::stdexec::receiver _Receiver, ::stdexec::sender _Upstream>
     struct _State
         : _Desc::_Operation
         , _State_base<_Receiver>
@@ -119,7 +119,7 @@ struct stdnet::_Hidden::_Cpo
         ::std::optional<_Callback> _D_callback;
         ::std::atomic<int>         _D_outstanding{};
 
-        template <typename _DT, typename _RT>
+        template <typename _DT, ::stdexec::receiver _RT>
         _State(_DT&& _D, _RT&& _R, _Upstream _Up)
             : _Desc::_Operation(_D._Id(), _D._Events())
             , _State_base<_Receiver>(::std::forward<_RT>(_R))
@@ -181,7 +181,7 @@ struct stdnet::_Hidden::_Cpo
         _Data     _D_data;
         _Upstream _D_upstream;
 
-        template <typename _Receiver>
+        template <::stdexec::receiver _Receiver>
         friend auto tag_invoke(::stdexec::connect_t, _Sender const& _Self, _Receiver&& _R)
         {
             return _State<_Data, ::std::remove_cvref_t<_Receiver>, _Upstream>(
