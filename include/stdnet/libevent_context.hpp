@@ -203,7 +203,7 @@ inline auto stdnet::_Hidden::_Libevent_context::run_one() -> ::std::size_t
 inline auto stdnet::_Hidden::_Libevent_context::_Cancel(::stdnet::_Hidden::_Io_base* _Cancel_op,
                                                      ::stdnet::_Hidden::_Io_base* _Op) -> void
 {
-    if (-1 == event_del(static_cast<::event *>(_Op->_Extra.get())))
+    if (_Op->_Extra && -1 == event_del(static_cast<::event *>(_Op->_Extra.get())))
     {
         assert("deleting a libevent event failed!" == nullptr);
     }
@@ -312,9 +312,54 @@ inline auto stdnet::_Hidden::_Libevent_context::_Receive(_Receive_operation* _Op
     return true;
 }
 
-inline auto stdnet::_Hidden::_Libevent_context::_Send(_Send_operation*) -> bool 
+inline auto stdnet::_Hidden::_Libevent_context::_Send(_Send_operation* _Op) -> bool 
 {
-    return {};
+    auto _Handle(this->_Native_handle(_Op->_Id));
+    ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_WRITE, _Libevent_callback, _Op));
+    if (_Ev == nullptr)
+    {
+        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Libevent_error_category()));
+        return false;
+    }
+    _Op->_Context = this;
+    _Op->_Extra = std::unique_ptr<void, auto(*)(void*)->void>(
+        _Ev,
+        +[](void* _Ev){ ::event_free(static_cast<::event*>(_Ev)); });
+
+    _Op->_Work = [](::stdnet::_Hidden::_Context_base& _Ctxt, ::stdnet::_Hidden::_Io_base* _Op)
+        {
+            auto _Id{_Op->_Id};
+            auto& _Completion(*static_cast<_Receive_operation*>(_Op));
+
+            while (true)
+            {
+                int _Rc = ::sendmsg(_Ctxt._Native_handle(_Id),
+                                    &::std::get<0>(_Completion),
+                                    ::std::get<1>(_Completion));
+                if (0 <= _Rc)
+                {
+                    ::std::get<2>(_Completion) = _Rc;
+                    _Completion._Complete();
+                    return true;
+                }
+                else
+                {
+                    switch (errno)
+                    {
+                    default:
+                        _Completion._Error(::std::error_code(errno, ::std::system_category()));
+                        return true;
+                    case EINTR:
+                        break;
+                    case EWOULDBLOCK:
+                        return false;
+                    }
+                }
+            }
+        };
+
+    ::event_add(_Ev, nullptr);
+    return true;
 }
 
 // ----------------------------------------------------------------------------

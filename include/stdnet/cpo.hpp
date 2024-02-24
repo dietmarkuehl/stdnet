@@ -20,6 +20,7 @@
 #ifndef INCLUDED_STDNET_CPO
 #define INCLUDED_STDNET_CPO
 
+#include <stdnet/io_base.hpp>
 #include <stdexec/concepts.hpp>
 #include <stdexec/execution.hpp>
 #include <type_traits>
@@ -149,6 +150,7 @@ struct stdnet::_Hidden::_Cpo
         }
         auto _Complete() -> void override final
         {
+            _D_callback.reset();
             if (0 == --this->_D_outstanding)
             {
                 this->_D_data._Set_value(*this, ::std::move(this->_D_receiver));
@@ -156,6 +158,7 @@ struct stdnet::_Hidden::_Cpo
         }
         auto _Error(::std::error_code _Err) -> void override final
         {
+            _D_callback.reset();
             if (0 == --this->_D_outstanding)
             {
                 ::stdexec::set_error(::std::move(this->_D_receiver), _Err);

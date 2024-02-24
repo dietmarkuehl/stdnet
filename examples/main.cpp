@@ -53,6 +53,8 @@ auto make_client(exec::async_scope& scope, auto client) -> exec::task<void>
                 std::cout << "exiting\n";
                 scope.get_stop_source().request_stop();
             }
+            auto ssize = co_await stdnet::async_send(client, ::stdnet::mutable_buffer(buffer, size));
+            std::cout << "sent<ssize>(" << ::std::string_view(buffer, ssize) << ")\n";
         }
         std::cout << "client done\n";
     }
@@ -66,6 +68,7 @@ auto make_client(exec::async_scope& scope, auto client) -> exec::task<void>
 int main()
 {
     std::cout << std::unitbuf;
+    std::cout << "example server\n";
     try
     {
         exec::async_scope         scope;

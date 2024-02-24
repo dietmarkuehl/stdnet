@@ -42,9 +42,11 @@ include_directories(include)
 add_compile_options(-Wno-deprecated-declarations -Wno-dangling-field)
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(main main.cpp)
-target_link_libraries(main STDEXEC::stdexec)
-target_link_libraries(main event_core_shared)
-add_executable(overview overview.cpp)
-target_link_libraries(overview STDEXEC::stdexec)
-target_link_libraries(overview event_core_shared)
+list(APPEND stdnet_examples
+    main
+    overview
+)
+foreach(example ${stdnet_examples})
+    add_executable(${example} examples/${example}.cpp)
+    target_link_libraries(${example} STDEXEC::stdexec event_core_shared)
+endforeach()

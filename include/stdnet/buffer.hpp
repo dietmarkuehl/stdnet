@@ -27,6 +27,7 @@
 #define INCLUDED_STDNET_BUFFER
 
 #include <sys/socket.h>
+#include <cassert>
 #include <cstddef>
 
 // ----------------------------------------------------------------------------
@@ -38,6 +39,8 @@ namespace stdnet
 
     template <::std::size_t _S>
     auto mutable_buffer(char (&)[_S]) -> ::stdnet::buffer;
+    template <::std::size_t _S>
+    auto mutable_buffer(char (&)[_S], ::std::size_t) -> ::stdnet::buffer;
 }
 
 // ----------------------------------------------------------------------------
@@ -55,6 +58,13 @@ template <::std::size_t _S>
 inline auto stdnet::mutable_buffer(char (&_B)[_S]) -> ::stdnet::buffer
 {
     return ::stdnet::buffer(_B, _S);
+}
+
+template <::std::size_t _S>
+inline auto stdnet::mutable_buffer(char (& _B)[_S], ::std::size_t _Size) -> ::stdnet::buffer
+{
+    assert(_Size <= _S);
+    return ::stdnet::buffer(_B, _Size);
 }
 
 // ----------------------------------------------------------------------------
