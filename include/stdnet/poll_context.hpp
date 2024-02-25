@@ -23,7 +23,6 @@
 #include <stdnet/netfwd.hpp>
 #include <stdnet/container.hpp>
 #include <stdnet/context_base.hpp>
-#include <stdnet/basic_stream_socket.hpp>
 #include <vector>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -192,7 +191,7 @@ struct stdnet::_Hidden::_Poll_context final
                     int _Rc = ::accept(_Ctxt._Native_handle(_Id), ::std::get<0>(_Completion)._Data(), &::std::get<1>(_Completion));
                     if (0 <= _Rc)
                     {
-                        ::std::get<2>(_Completion) = ::stdnet::basic_stream_socket<::stdnet::ip::tcp>(&_Ctxt, _Ctxt._Make_socket(_Rc));
+                        ::std::get<2>(_Completion) =  _Ctxt._Make_socket(_Rc);
                         _Completion._Complete();
                         return true;
                     }
@@ -213,6 +212,7 @@ struct stdnet::_Hidden::_Poll_context final
             };
         return this->_Add_Outstanding(_Completion);
     }
+    auto _Connect(_Connect_operation* _Completion) -> bool override { return {}; /*-dk:TODO*/ } 
     auto _Receive(_Receive_operation*) -> bool override { return {}; /*-dk:TODO*/ }
     auto _Send(_Send_operation*) -> bool override { return {}; /*-dk:TODO*/ }
 };

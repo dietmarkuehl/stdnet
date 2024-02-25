@@ -21,6 +21,7 @@
 #define INCLUDED_STDNET_SOCKET_BASE
 
 #include <stdnet/netfwd.hpp>
+#include <sys/socket.h>
 
 // ----------------------------------------------------------------------------
 

@@ -21,6 +21,7 @@
 #define INCLUDED_STDNET_CONTEXT_BASE
 
 #include <stdnet/io_base.hpp>
+#include <stdnet/internet.hpp>
 #include <optional>
 #include <system_error>
 
@@ -38,8 +39,11 @@ struct stdnet::_Hidden::_Context_base
     using _Accept_operation = ::stdnet::_Hidden::_Io_operation<
         ::std::tuple<::stdnet::ip::tcp::endpoint,
                      ::socklen_t,
-                     ::std::optional<::stdnet::basic_stream_socket<::stdnet::ip::tcp>>
+                     ::std::optional<::stdnet::_Hidden::_Socket_id>
                      >
+        >;
+    using _Connect_operation = ::stdnet::_Hidden::_Io_operation<
+        ::std::tuple<::stdnet::ip::tcp::endpoint>
         >;
     using _Receive_operation = ::stdnet::_Hidden::_Io_operation<
         ::std::tuple<::msghdr, int, ::std::size_t>
@@ -61,6 +65,7 @@ struct stdnet::_Hidden::_Context_base
 
     virtual auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void = 0;
     virtual auto _Accept(_Accept_operation*) -> bool = 0;
+    virtual auto _Connect(_Connect_operation*) -> bool = 0;
     virtual auto _Receive(_Receive_operation*) -> bool = 0;
     virtual auto _Send(_Send_operation*) -> bool = 0;
 };

@@ -23,7 +23,6 @@
 #include <stdnet/netfwd.hpp>
 #include <stdnet/container.hpp>
 #include <stdnet/context_base.hpp>
-#include <stdnet/basic_stream_socket.hpp>
 #include <memory>
 #include <new>
 #include <system_error>
@@ -33,6 +32,7 @@
 #include <event2/event.h>
 #include <event2/util.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 // ----------------------------------------------------------------------------
 
@@ -102,6 +102,7 @@ private:
 
     auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void override;
     auto _Accept(_Accept_operation*) -> bool override;
+    auto _Connect(_Connect_operation*) -> bool override;
     auto _Receive(_Receive_operation*) -> bool override;
     auto _Send(_Send_operation*) -> bool override;
 
@@ -236,7 +237,7 @@ inline auto stdnet::_Hidden::_Libevent_context::_Accept(_Accept_operation* _Op) 
                 int _Rc = ::accept(_Ctxt._Native_handle(_Id), ::std::get<0>(_Completion)._Data(), &::std::get<1>(_Completion));
                 if (0 <= _Rc)
                 {
-                    ::std::get<2>(_Completion) = ::stdnet::basic_stream_socket<::stdnet::ip::tcp>(&_Ctxt, _Ctxt._Make_socket(_Rc));
+                    ::std::get<2>(_Completion) = _Ctxt._Make_socket(_Rc);
                     _Completion._Complete();
                     return true;
                 }
@@ -259,6 +260,70 @@ inline auto stdnet::_Hidden::_Libevent_context::_Accept(_Accept_operation* _Op) 
     ::event_add(_Ev, nullptr);
     return true;
 }
+// ----------------------------------------------------------------------------
+
+inline auto stdnet::_Hidden::_Libevent_context::_Connect(_Connect_operation* _Op) -> bool
+{
+    auto _Handle(this->_Native_handle(_Op->_Id));
+    auto const& _Endpoint(::std::get<0>(*_Op));
+    if (-1 == ::fcntl(_Handle, F_SETFL, O_NONBLOCK))
+    {
+        _Op->_Error(::std::error_code(errno, ::std::system_category()));
+        return false;
+    }
+    if (0 == ::connect(_Handle, _Endpoint._Data(), _Endpoint._Size()))
+    {
+        _Op->_Complete();
+        return false;
+    }
+    switch (errno)
+    {
+    default:
+        _Op->_Error(::std::error_code(errno, ::std::system_category()));
+        return false;
+    case EINPROGRESS:
+    case EINTR:
+        break;
+    }
+
+    ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ | EV_WRITE, _Libevent_callback, _Op));
+    if (_Ev == nullptr)
+    {
+        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Libevent_error_category()));
+        return false;
+    }
+    _Op->_Context = this;
+    _Op->_Extra = std::unique_ptr<void, auto(*)(void*)->void>(
+        _Ev,
+        +[](void* _Ev){ ::event_free(static_cast<::event*>(_Ev)); });
+
+    _Op->_Work =
+        [](::stdnet::_Hidden::_Context_base& _Ctxt, ::stdnet::_Hidden::_Io_base* _Op)
+        {
+            auto _Handle{_Ctxt._Native_handle(_Op->_Id)};
+            auto& _Completion(*static_cast<_Connect_operation*>(_Op));
+
+            int _Error{};
+            ::socklen_t _Len{sizeof(_Error)};
+            if (-1 == ::getsockopt(_Handle, SOL_SOCKET, SO_ERROR, &_Error, &_Len))
+            {
+                _Op->_Error(::std::error_code(errno, ::std::system_category()));
+                return true;
+            }
+            if (0 == _Error)
+            {
+                _Op->_Complete();
+            }
+            else
+            {
+                _Op->_Error(::std::error_code(_Error, ::std::system_category()));
+            }
+            return true;
+        };
+
+    ::event_add(_Ev, nullptr);
+    return true;
+} 
 
 // ----------------------------------------------------------------------------
 

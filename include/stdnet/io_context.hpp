@@ -26,7 +26,6 @@
 #include <stdnet/io_context_scheduler.hpp>
 #include <stdnet/libevent_context.hpp>
 #include <stdnet/poll_context.hpp>
-#include <stdnet/basic_stream_socket.hpp>
 #include <stdnet/container.hpp>
 #include <cstdint>
 #include <sys/socket.h>

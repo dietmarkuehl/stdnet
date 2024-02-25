@@ -21,7 +21,10 @@
 #define INCLUDED_STDNET_BASIC_STREAM_SOCKET
 
 #include <stdnet/netfwd.hpp>
+#include <stdnet/io_context.hpp>
 #include <stdnet/basic_socket.hpp>
+#include <functional>
+#include <system_error>
 
 // ----------------------------------------------------------------------------
 
@@ -34,16 +37,32 @@ public:
     using protocol_type = _Protocol;
     using endpoint_type = typename protocol_type::endpoint;
 
+private:
+    endpoint_type _D_endpoint;
+
+public:
     basic_stream_socket(basic_stream_socket&&) = default;
     basic_stream_socket& operator= (basic_stream_socket&&) = default;
     basic_stream_socket(::stdnet::_Hidden::_Context_base* _Context, ::stdnet::_Hidden::_Socket_id _Id)
         : basic_socket<_Protocol>(_Context, _Id)
     {
     }
-    basic_stream_socket(::stdnet::io_context&, endpoint_type const&)
-        : stdnet::basic_socket<_Protocol>()
+    basic_stream_socket(::stdnet::io_context& _Context, endpoint_type const& _Endpoint)
+        : stdnet::basic_socket<_Protocol>(_Context.get_scheduler()._Get_context(),
+            ::std::invoke([_Protocol = _Endpoint.protocol(), &_Context]{
+                ::std::error_code _Error{};
+                auto _Rc(_Context._Make_socket(_Protocol.family(), _Protocol.type(), _Protocol.protocol(), _Error));
+                if (_Error)
+                {
+                    throw ::std::system_error(_Error);
+                }
+                return _Rc;
+            }))
+        , _D_endpoint(_Endpoint) 
     {
     }
+
+    auto get_endpoint() const -> endpoint_type { return this->_D_endpoint; }
 };
 
 

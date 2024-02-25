@@ -21,6 +21,9 @@
 #define INCLUDED_STDNET_NETFWD
 #pragma once
 
+#include <limits>
+#include <cstdint>
+
 // ----------------------------------------------------------------------------
 
 namespace stdnet

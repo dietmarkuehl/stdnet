@@ -26,11 +26,13 @@
 #include <stdnet/socket_base.hpp>
 #include <stdnet/basic_socket.hpp>
 #include <stdnet/basic_stream_socket.hpp>
+#include <stdnet/io_context.hpp>
 
 #include <stdexec/functional.hpp>
 #include <system_error>
 #include <type_traits>
 #include <sys/socket.h>
+#include <poll.h>
 #include <unistd.h>
 #include <cerrno>
 #include <atomic>
@@ -53,6 +55,8 @@ namespace stdnet
 
     using async_accept_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Accept_desc>;
     inline constexpr async_accept_t async_accept{};
+    using async_connect_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Connect_desc>;
+    inline constexpr async_connect_t async_connect{};
     using async_send_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Send_desc>;
     inline constexpr async_send_t async_send{};
     using async_receive_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Receive_desc>;
@@ -76,11 +80,38 @@ struct stdnet::_Hidden::_Accept_desc
         auto _Get_scheduler() { return this->_D_acceptor.get_scheduler(); }
         auto _Set_value(_Operation& _O, auto&& _Receiver)
         {
-            ::stdexec::set_value(::std::move(_Receiver), ::std::move(*::std::get<2>(_O)));
+            ::stdexec::set_value(::std::move(_Receiver),
+                                 _Socket_t(this->_D_acceptor.get_scheduler()._Get_context(),
+                                           ::std::move(*::std::get<2>(_O))));
         }
         auto _Submit(auto* _Base) -> bool
         {
-            return this->_D_acceptor.get_scheduler()._Accept(this->_D_acceptor._Id(), _Base);
+            return this->_D_acceptor.get_scheduler()._Accept(_Base);
+        }
+    };
+};
+
+struct stdnet::_Hidden::_Connect_desc
+{
+    using _Operation = ::stdnet::_Hidden::_Context_base::_Connect_operation;
+    template <typename _Socket>
+    struct _Data
+    {
+        using _Completion_signature = ::stdexec::set_value_t();
+
+        _Socket& _D_socket;
+
+        auto _Id() const { return this->_D_socket._Id(); }
+        auto _Events() const { return POLLIN; }
+        auto _Get_scheduler() { return this->_D_socket.get_scheduler(); }
+        auto _Set_value(_Operation&, auto&& _Receiver)
+        {
+            ::stdexec::set_value(::std::move(_Receiver));
+        }
+        auto _Submit(auto* _Base) -> bool
+        {
+            ::std::get<0>(*_Base) = this->_D_socket.get_endpoint();
+            return this->_D_socket.get_scheduler()._Connect(_Base);
         }
     };
 };
@@ -233,6 +264,7 @@ public:
     template<typename _OtherProtocol>
     basic_socket_acceptor& operator=(::stdnet::basic_socket_acceptor<_OtherProtocol>&&);
 
+    auto _Get_context() -> ::stdnet::io_context& { return this->_D_context; }
     auto get_scheduler() noexcept -> scheduler_type
     {
         return this->_D_context.get_scheduler();

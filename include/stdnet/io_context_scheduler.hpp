@@ -21,6 +21,7 @@
 #define INCLUDED_STDNET_IO_CONTEXT_SCHEDULER
 
 #include <stdnet/context_base.hpp>
+#include <cassert>
 
 // ----------------------------------------------------------------------------
 
@@ -40,15 +41,22 @@ public:
     _Io_context_scheduler(::stdnet::_Hidden::_Context_base* _Context)
         : _D_context(_Context)
     {
+        assert(this->_D_context);
     }
+
+    auto _Get_context() const { return this->_D_context; }
 
     auto _Cancel(_Hidden::_Io_base* _Cancel_op, _Hidden::_Io_base* _Op) -> void
     {
         this->_D_context->_Cancel(_Cancel_op, _Op);
     }
-    auto _Accept(::stdnet::_Hidden::_Socket_id _Id, _Hidden::_Context_base::_Accept_operation* _Op) -> bool
+    auto _Accept(_Hidden::_Context_base::_Accept_operation* _Op) -> bool
     {
         return this->_D_context->_Accept(_Op);
+    }
+    auto _Connect(_Hidden::_Context_base::_Connect_operation* _Op) -> bool
+    {
+        return this->_D_context->_Connect(_Op);
     }
     auto _Receive(_Hidden::_Context_base::_Receive_operation* _Op) -> bool
     {

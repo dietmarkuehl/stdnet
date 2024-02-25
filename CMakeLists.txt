@@ -43,7 +43,8 @@ add_compile_options(-Wno-deprecated-declarations -Wno-dangling-field)
 set(CMAKE_CXX_STANDARD 20)
 
 list(APPEND stdnet_examples
-    main
+    client
+    server
     overview
 )
 foreach(example ${stdnet_examples})
