@@ -27,6 +27,8 @@
 #define INCLUDED_STDNET_BUFFER
 
 #include <sys/socket.h>
+#include <string>
+#include <system_error>
 #include <cassert>
 #include <cstddef>
 
@@ -34,37 +36,78 @@
 
 namespace stdnet
 {
-    struct buffer;
+    enum class stream_errc: int;
+
+    auto stream_category() noexcept -> ::std::error_category const&;
+
+    auto make_error_code(::stdnet::stream_errc) noexcept -> ::std::error_code;
+    auto make_error_condition(::stdnet::stream_errc) noexcept -> ::std::error_condition;
+
+    class mutable_buffer;
+    class const_buffer;
+
+    template <typename> struct is_mutable_buffer_sequence;
+    template <typename> struct is_const_buffer_sequence;
+    template <typename> struct is_dynamic_buffer;
+
     struct buffer_sequence;
 
     template <::std::size_t _S>
-    auto mutable_buffer(char (&)[_S]) -> ::stdnet::buffer;
+    auto buffer(char (&)[_S]) -> ::stdnet::mutable_buffer;
     template <::std::size_t _S>
-    auto mutable_buffer(char (&)[_S], ::std::size_t) -> ::stdnet::buffer;
+    auto buffer(char (&)[_S], ::std::size_t) -> ::stdnet::mutable_buffer;
 }
 
 // ----------------------------------------------------------------------------
 
-struct stdnet::buffer
+enum class stdnet::stream_errc: int
+{
+    eof,
+    not_found
+};
+
+// ----------------------------------------------------------------------------
+
+inline auto stdnet::stream_category() noexcept -> ::std::error_category const&
+{
+    struct _Category
+        : ::std::error_category
+    {
+        auto name() const noexcept -> char const* override
+        {
+            return "stream_error";
+        }
+        auto message(int) const noexcept -> ::std::string override
+        {
+            return {};
+        }
+    };
+    static _Category _Rc{};
+    return _Rc; 
+}
+
+// ----------------------------------------------------------------------------
+
+struct stdnet::mutable_buffer
 {
     ::iovec _Vec;
-    buffer(void* _B, ::std::size_t _L): _Vec{ .iov_base = _B, .iov_len = _L } {}
+    mutable_buffer(void* _B, ::std::size_t _L): _Vec{ .iov_base = _B, .iov_len = _L } {}
 
     auto data() -> ::iovec*      { return &this->_Vec; }
     auto size() -> ::std::size_t { return 1u; }
 };
 
 template <::std::size_t _S>
-inline auto stdnet::mutable_buffer(char (&_B)[_S]) -> ::stdnet::buffer
+inline auto stdnet::buffer(char (&_B)[_S]) -> ::stdnet::mutable_buffer
 {
-    return ::stdnet::buffer(_B, _S);
+    return ::stdnet::mutable_buffer(_B, _S);
 }
 
 template <::std::size_t _S>
-inline auto stdnet::mutable_buffer(char (& _B)[_S], ::std::size_t _Size) -> ::stdnet::buffer
+inline auto stdnet::buffer(char (& _B)[_S], ::std::size_t _Size) -> ::stdnet::mutable_buffer
 {
     assert(_Size <= _S);
-    return ::stdnet::buffer(_B, _Size);
+    return ::stdnet::mutable_buffer(_B, _Size);
 }
 
 // ----------------------------------------------------------------------------

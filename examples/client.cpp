@@ -43,7 +43,7 @@ int main()
             client.get_scheduler();
             char buffer[] = {'h', 'e', 'l', 'l', 'o'};
             co_await stdnet::async_connect(client);
-            auto n = co_await stdnet::async_send(client, stdnet::mutable_buffer(buffer));
+            auto n = co_await stdnet::async_send(client, stdnet::buffer(buffer));
         }
         catch(std::exception const& ex)
         {

@@ -19,12 +19,15 @@
 
 RM       = rm -f
 
-.PHONY: default build distclean clean
+.PHONY: default build test distclean clean
 
-default: build
+default: test
 
 stdexec:
         git clone https://github.com/NVIDIA/stdexec
+
+test: build
+	./build/test_stdnet
 
 build:  stdexec
 	@mkdir -p build

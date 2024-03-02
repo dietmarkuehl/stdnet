@@ -16,7 +16,7 @@ cmake_minimum_required(VERSION 3.22.1)
 project(stdnet)
 
 # --- Make Catch2 available ----------------------------------------------------
-Include(FetchContent)
+include(FetchContent)
 
 FetchContent_Declare(
   Catch2
@@ -25,6 +25,7 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(Catch2)
+include(Catch)
 
 # --- Make stdexec available ---------------------------------------------------
 set(STDEXEC_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -51,3 +52,26 @@ foreach(example ${stdnet_examples})
     add_executable(${example} examples/${example}.cpp)
     target_link_libraries(${example} STDEXEC::stdexec event_core_shared)
 endforeach()
+
+list (APPEND stdnet_tests
+    buffer
+)
+
+if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
+    include(CTest)
+    list(TRANSFORM stdnet_tests PREPEND "test/stdnet/")
+    list(TRANSFORM stdnet_tests APPEND ".cpp")
+
+    add_executable(test_stdnet ${stdnet_tests})
+    set_target_properties(test_stdnet PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
+    target_link_libraries(test_stdnet
+        STDEXEC::stdexec
+        event_core_shared
+        Catch2::Catch2WithMain
+    )
+    catch_discover_tests(test_stdnet)
+endif()

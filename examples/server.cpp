@@ -44,7 +44,7 @@ auto make_client(exec::async_scope& scope, auto client) -> exec::task<void>
     try
     {
         char buffer[8];
-        while (auto size = co_await stdnet::async_receive(client, ::stdnet::mutable_buffer(buffer)))
+        while (auto size = co_await stdnet::async_receive(client, ::stdnet::buffer(buffer)))
         {
             std::string_view message(+buffer, size);
             std::cout << "received<" << size << ">(" << message << ")\n";
