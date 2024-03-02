@@ -23,6 +23,7 @@
 #include <stdnet/netfwd.hpp>
 #include <stdnet/socket_base.hpp>
 #include <stdnet/io_context_scheduler.hpp>
+#include <stdnet/internet.hpp>
 
 // ----------------------------------------------------------------------------
 

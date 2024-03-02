@@ -22,6 +22,7 @@
 #pragma once
 
 #include <stdnet/netfwd.hpp>
+#include <stdnet/endpoint.hpp>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -175,10 +176,8 @@ public:
 
 template <typename _Protocol>
 class ::stdnet::ip::basic_endpoint
+    : public ::stdnet::_Hidden::_Endpoint
 {
-private:
-    ::sockaddr_storage _D_address;
-
 public:
     using protocol_type = _Protocol;
 
@@ -188,27 +187,25 @@ public:
     }
     constexpr basic_endpoint(const protocol_type&, ::stdnet::ip::port_type) noexcept;
     constexpr basic_endpoint(const ip::address& _Address, ::stdnet::ip::port_type _Port) noexcept
-        : _D_address(_Address._Data())
+        : ::stdnet::_Hidden::_Endpoint(&_Address._Data(), _Address.is_v4()? sizeof(::sockaddr_in): sizeof(::sockaddr_in6))
     {
         (_Address.is_v4()
-         ? reinterpret_cast<::sockaddr_in&>(this->_D_address).sin_port
-         : reinterpret_cast<::sockaddr_in6&>(this->_D_address).sin6_port) = htons(_Port);
+         ? reinterpret_cast<::sockaddr_in&>(this->_Storage()).sin_port
+         : reinterpret_cast<::sockaddr_in6&>(this->_Storage()).sin6_port) = htons(_Port);
     }
 
     constexpr auto protocol() const noexcept -> protocol_type
     {
-        return this->_D_address.ss_family == PF_INET? ::stdnet::ip::tcp::v4(): ::stdnet::ip::tcp::v6();
+        return this->_Storage().ss_family == PF_INET? ::stdnet::ip::tcp::v4(): ::stdnet::ip::tcp::v6();
     }
     constexpr auto address() const noexcept -> ::stdnet::ip::address;
     auto address(::stdnet::ip::address const&) noexcept -> void;
     constexpr auto port() const noexcept -> ::stdnet::ip::port_type;
     auto port(::stdnet::ip::port_type) noexcept -> void;
 
-    auto _Data() const -> ::sockaddr const* { return reinterpret_cast<::sockaddr const*>(&this->_D_address); }
-    auto _Data() -> ::sockaddr * { return reinterpret_cast<::sockaddr*>(&this->_D_address); }
     auto _Size() const -> ::socklen_t
     {
-        return this->_D_address.ss_family == PF_INET? sizeof(::sockaddr_in): sizeof(::sockaddr_in6);
+        return this->_Storage().ss_family == PF_INET? sizeof(::sockaddr_in): sizeof(::sockaddr_in6);
     }
 };
 

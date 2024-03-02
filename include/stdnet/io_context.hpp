@@ -81,7 +81,7 @@ public:
     }
     auto _Bind(::stdnet::_Hidden::_Socket_id _Id, ::stdnet::ip::basic_endpoint<::stdnet::ip::tcp> const& _Endpoint, ::std::error_code& _Error)
     {
-        this->_D_context._Bind(_Id, _Endpoint, _Error);
+        this->_D_context._Bind(_Id, ::stdnet::_Hidden::_Endpoint(_Endpoint), _Error);
     }
     auto _Listen(::stdnet::_Hidden::_Socket_id _Id, int _No, ::std::error_code& _Error)
     {

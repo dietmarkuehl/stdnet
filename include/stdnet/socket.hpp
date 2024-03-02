@@ -27,6 +27,7 @@
 #include <stdnet/basic_socket.hpp>
 #include <stdnet/basic_stream_socket.hpp>
 #include <stdnet/io_context.hpp>
+#include <stdnet/internet.hpp>
 
 #include <stdexec/functional.hpp>
 #include <system_error>
@@ -50,7 +51,9 @@ namespace stdnet
         struct _Accept_desc;
         struct _Connect_desc;
         struct _Send_desc;
+        struct _Send_to_desc;
         struct _Receive_desc;
+        struct _Receive_from_desc;
     }
 
     using async_accept_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Accept_desc>;
@@ -59,8 +62,12 @@ namespace stdnet
     inline constexpr async_connect_t async_connect{};
     using async_send_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Send_desc>;
     inline constexpr async_send_t async_send{};
+    using async_send_to_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Send_to_desc>;
+    inline constexpr async_send_to_t async_send_to{};
     using async_receive_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Receive_desc>;
     inline constexpr async_receive_t async_receive{};
+    using async_receive_from_t = ::stdnet::_Hidden::_Cpo<::stdnet::_Hidden::_Receive_from_desc>;
+    inline constexpr async_receive_from_t async_receive_from{};
 }
 
 struct stdnet::_Hidden::_Accept_desc
@@ -143,6 +150,36 @@ struct stdnet::_Hidden::_Send_desc
     };
 };
 
+struct stdnet::_Hidden::_Send_to_desc
+{
+    using _Operation = ::stdnet::_Hidden::_Context_base::_Send_operation;
+    template <typename _Stream_t, typename _Buffers, typename _Endpoint>
+    struct _Data
+    {
+        using _Completion_signature = ::stdexec::set_value_t(::std::size_t);
+
+        _Stream_t& _D_stream;
+        _Buffers   _D_buffers;
+        _Endpoint  _D_endpoint;
+
+        auto _Id() const { return this->_D_stream._Id(); }
+        auto _Events() const { return POLLIN; }
+        auto _Get_scheduler() { return this->_D_stream.get_scheduler(); }
+        auto _Set_value(_Operation& _O, auto&& _Receiver)
+        {
+            ::stdexec::set_value(::std::move(_Receiver), ::std::get<2>(_O));
+        }
+        auto _Submit(auto* _Base) -> bool
+        {
+            ::std::get<0>(*_Base).msg_iov     = this->_D_buffers.data();
+            ::std::get<0>(*_Base).msg_iovlen  = this->_D_buffers.size();
+            ::std::get<0>(*_Base).msg_name    = this->_D_endpoint._Data();
+            ::std::get<0>(*_Base).msg_namelen = this->_D_endpoint._Size();
+            return this->_D_stream.get_scheduler()._Send(_Base);
+        }
+    };
+};
+
 struct stdnet::_Hidden::_Receive_desc
 {
     using _Operation = ::stdnet::_Hidden::_Context_base::_Receive_operation;
@@ -165,6 +202,36 @@ struct stdnet::_Hidden::_Receive_desc
         {
             ::std::get<0>(*_Base).msg_iov    = this->_D_buffers.data();
             ::std::get<0>(*_Base).msg_iovlen = this->_D_buffers.size();
+            return this->_D_stream.get_scheduler()._Receive(_Base);
+        }
+    };
+};
+
+struct stdnet::_Hidden::_Receive_from_desc
+{
+    using _Operation = ::stdnet::_Hidden::_Context_base::_Receive_operation;
+    template <typename _Stream_t, typename _Buffers, typename _Endpoint>
+    struct _Data
+    {
+        using _Completion_signature = ::stdexec::set_value_t(::std::size_t);
+
+        _Stream_t& _D_stream;
+        _Buffers   _D_buffers;
+        _Endpoint  _D_endpoint;
+
+        auto _Id() const { return this->_D_stream._Id(); }
+        auto _Events() const { return POLLIN; }
+        auto _Get_scheduler() { return this->_D_stream.get_scheduler(); }
+        auto _Set_value(_Operation& _O, auto&& _Receiver)
+        {
+            ::stdexec::set_value(::std::move(_Receiver), ::std::get<2>(_O));
+        }
+        auto _Submit(auto* _Base) -> bool
+        {
+            ::std::get<0>(*_Base).msg_iov     = this->_D_buffers.data();
+            ::std::get<0>(*_Base).msg_iovlen  = this->_D_buffers.size();
+            ::std::get<0>(*_Base).msg_name    = this->_D_buffers._Data();
+            ::std::get<0>(*_Base).msg_namelen = this->_D_buffers._Size();
             return this->_D_stream.get_scheduler()._Receive(_Base);
         }
     };

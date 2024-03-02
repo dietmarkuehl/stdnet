@@ -21,7 +21,8 @@
 #define INCLUDED_STDNET_CONTEXT_BASE
 
 #include <stdnet/io_base.hpp>
-#include <stdnet/internet.hpp>
+#include <stdnet/endpoint.hpp>
+#include <chrono>
 #include <optional>
 #include <system_error>
 
@@ -37,19 +38,25 @@ namespace stdnet::_Hidden
 struct stdnet::_Hidden::_Context_base
 {
     using _Accept_operation = ::stdnet::_Hidden::_Io_operation<
-        ::std::tuple<::stdnet::ip::tcp::endpoint,
+        ::std::tuple<::stdnet::_Hidden::_Endpoint,
                      ::socklen_t,
                      ::std::optional<::stdnet::_Hidden::_Socket_id>
                      >
         >;
     using _Connect_operation = ::stdnet::_Hidden::_Io_operation<
-        ::std::tuple<::stdnet::ip::tcp::endpoint>
+        ::std::tuple<::stdnet::_Hidden::_Endpoint>
         >;
     using _Receive_operation = ::stdnet::_Hidden::_Io_operation<
         ::std::tuple<::msghdr, int, ::std::size_t>
         >;
     using _Send_operation = ::stdnet::_Hidden::_Io_operation<
         ::std::tuple<::msghdr, int, ::std::size_t>
+        >;
+    using _Resume_after_operation = ::stdnet::_Hidden::_Io_operation<
+        ::std::tuple<::std::chrono::microseconds>
+        >;
+    using _Resume_at_operation = ::stdnet::_Hidden::_Io_operation<
+        ::std::tuple<::std::chrono::system_clock::time_point>
         >;
 
     virtual ~_Context_base() = default;
@@ -58,16 +65,18 @@ struct stdnet::_Hidden::_Context_base
     virtual auto _Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&) -> void = 0;
     virtual auto _Native_handle(::stdnet::_Hidden::_Socket_id) -> _Stdnet_native_handle_type = 0;
     virtual auto _Set_option(::stdnet::_Hidden::_Socket_id, int, int, void const*, ::socklen_t, ::std::error_code&) -> void = 0;
-    virtual auto _Bind(::stdnet::_Hidden::_Socket_id, ::stdnet::ip::basic_endpoint<::stdnet::ip::tcp> const&, ::std::error_code&) -> void = 0;
+    virtual auto _Bind(::stdnet::_Hidden::_Socket_id, ::stdnet::_Hidden::_Endpoint const&, ::std::error_code&) -> void = 0;
     virtual auto _Listen(::stdnet::_Hidden::_Socket_id, int, ::std::error_code&) -> void = 0;
 
     virtual auto run_one() -> ::std::size_t = 0;
 
     virtual auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void = 0;
-    virtual auto _Accept(_Accept_operation*) -> bool = 0;
-    virtual auto _Connect(_Connect_operation*) -> bool = 0;
-    virtual auto _Receive(_Receive_operation*) -> bool = 0;
-    virtual auto _Send(_Send_operation*) -> bool = 0;
+    virtual auto _Accept(::stdnet::_Hidden::_Context_base::_Accept_operation*) -> bool = 0;
+    virtual auto _Connect(::stdnet::_Hidden::_Context_base::_Connect_operation*) -> bool = 0;
+    virtual auto _Receive(::stdnet::_Hidden::_Context_base::_Receive_operation*) -> bool = 0;
+    virtual auto _Send(::stdnet::_Hidden::_Context_base::_Send_operation*) -> bool = 0;
+    virtual auto _Resume_after(::stdnet::_Hidden::_Context_base::_Resume_after_operation*) -> bool = 0;
+    virtual auto _Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation*) -> bool = 0;
 };
 
 // ----------------------------------------------------------------------------

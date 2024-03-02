@@ -95,16 +95,18 @@ private:
     auto _Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&) -> void override;
     auto _Native_handle(::stdnet::_Hidden::_Socket_id) -> _Stdnet_native_handle_type override;
     auto _Set_option(::stdnet::_Hidden::_Socket_id, int, int, void const*, ::socklen_t, ::std::error_code&) -> void override;
-    auto _Bind(::stdnet::_Hidden::_Socket_id, ::stdnet::ip::basic_endpoint<::stdnet::ip::tcp> const&, ::std::error_code&) -> void override;
+    auto _Bind(::stdnet::_Hidden::_Socket_id, ::stdnet::_Hidden::_Endpoint const&, ::std::error_code&) -> void override;
     auto _Listen(::stdnet::_Hidden::_Socket_id, int, ::std::error_code&) -> void override;
 
     auto run_one() -> ::std::size_t override;
 
     auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void override;
-    auto _Accept(_Accept_operation*) -> bool override;
-    auto _Connect(_Connect_operation*) -> bool override;
-    auto _Receive(_Receive_operation*) -> bool override;
-    auto _Send(_Send_operation*) -> bool override;
+    auto _Accept(::stdnet::_Hidden::_Context_base::_Accept_operation*) -> bool override;
+    auto _Connect(::stdnet::_Hidden::_Context_base::_Connect_operation*) -> bool override;
+    auto _Receive(::stdnet::_Hidden::_Context_base::_Receive_operation*) -> bool override;
+    auto _Send(::stdnet::_Hidden::_Context_base::_Send_operation*) -> bool override;
+    auto _Resume_after(::stdnet::_Hidden::_Context_base::_Resume_after_operation*) -> bool override;
+    auto _Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation*) -> bool override;
 
 public:
     _Libevent_context();
@@ -172,7 +174,7 @@ inline auto stdnet::_Hidden::_Libevent_context::_Set_option(::stdnet::_Hidden::_
 }
 
 inline auto stdnet::_Hidden::_Libevent_context::_Bind(::stdnet::_Hidden::_Socket_id _Id,
-                                                   ::stdnet::ip::basic_endpoint<::stdnet::ip::tcp> const& _Endpoint,
+                                                   ::stdnet::_Hidden::_Endpoint const& _Endpoint,
                                                    ::std::error_code& _Error)
             -> void
 {
@@ -212,7 +214,7 @@ inline auto stdnet::_Hidden::_Libevent_context::_Cancel(::stdnet::_Hidden::_Io_b
     _Op->_Cancel();
 }
 
-inline auto stdnet::_Hidden::_Libevent_context::_Accept(_Accept_operation* _Op) -> bool
+inline auto stdnet::_Hidden::_Libevent_context::_Accept(::stdnet::_Hidden::_Context_base::_Accept_operation* _Op) -> bool
 {
     auto _Handle(this->_Native_handle(_Op->_Id));
     ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ, _Libevent_callback, _Op));
@@ -262,7 +264,7 @@ inline auto stdnet::_Hidden::_Libevent_context::_Accept(_Accept_operation* _Op) 
 }
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Libevent_context::_Connect(_Connect_operation* _Op) -> bool
+inline auto stdnet::_Hidden::_Libevent_context::_Connect(::stdnet::_Hidden::_Context_base::_Connect_operation* _Op) -> bool
 {
     auto _Handle(this->_Native_handle(_Op->_Id));
     auto const& _Endpoint(::std::get<0>(*_Op));
@@ -327,7 +329,7 @@ inline auto stdnet::_Hidden::_Libevent_context::_Connect(_Connect_operation* _Op
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Libevent_context::_Receive(_Receive_operation* _Op) -> bool
+inline auto stdnet::_Hidden::_Libevent_context::_Receive(::stdnet::_Hidden::_Context_base::_Receive_operation* _Op) -> bool
 {
     auto _Handle(this->_Native_handle(_Op->_Id));
     ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_READ, _Libevent_callback, _Op));
@@ -377,7 +379,7 @@ inline auto stdnet::_Hidden::_Libevent_context::_Receive(_Receive_operation* _Op
     return true;
 }
 
-inline auto stdnet::_Hidden::_Libevent_context::_Send(_Send_operation* _Op) -> bool 
+inline auto stdnet::_Hidden::_Libevent_context::_Send(::stdnet::_Hidden::_Context_base::_Send_operation* _Op) -> bool 
 {
     auto _Handle(this->_Native_handle(_Op->_Id));
     ::event* _Ev(::event_new(this->_Context.get(), _Handle, EV_WRITE, _Libevent_callback, _Op));
@@ -425,6 +427,18 @@ inline auto stdnet::_Hidden::_Libevent_context::_Send(_Send_operation* _Op) -> b
 
     ::event_add(_Ev, nullptr);
     return true;
+}
+
+auto ::stdnet::_Hidden::_Libevent_context::_Resume_after(::stdnet::_Hidden::_Context_base::_Resume_after_operation*) -> bool
+{
+    //-dk:TODO
+    return {};
+}
+
+auto ::stdnet::_Hidden::_Libevent_context::_Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation*) -> bool
+{
+    //-dk:TODO
+    return {};
 }
 
 // ----------------------------------------------------------------------------

@@ -95,7 +95,7 @@ struct stdnet::_Hidden::_Poll_context final
         }
     }
     auto _Bind(::stdnet::_Hidden::_Socket_id _Id,
-               ::stdnet::ip::basic_endpoint<::stdnet::ip::tcp> const& _Endpoint,
+               ::stdnet::_Hidden::_Endpoint const& _Endpoint,
                ::std::error_code& _Error) -> void override final
     {
         if (::bind(this->_Native_handle(_Id), _Endpoint._Data(), _Endpoint._Size()) < 0)
@@ -176,7 +176,7 @@ struct stdnet::_Hidden::_Poll_context final
     {
         //-dk:TODO
     }
-    auto _Accept(_Accept_operation* _Completion)
+    auto _Accept(::stdnet::_Hidden::_Context_base::_Accept_operation* _Completion)
         -> bool override final
     {
         auto _Id(_Completion->_Id);
@@ -212,9 +212,19 @@ struct stdnet::_Hidden::_Poll_context final
             };
         return this->_Add_Outstanding(_Completion);
     }
-    auto _Connect(_Connect_operation* _Completion) -> bool override { return {}; /*-dk:TODO*/ } 
-    auto _Receive(_Receive_operation*) -> bool override { return {}; /*-dk:TODO*/ }
-    auto _Send(_Send_operation*) -> bool override { return {}; /*-dk:TODO*/ }
+    auto _Connect(::stdnet::_Hidden::_Context_base::_Connect_operation* _Completion) -> bool override { return {}; /*-dk:TODO*/ } 
+    auto _Receive(::stdnet::_Hidden::_Context_base::_Receive_operation*) -> bool override { return {}; /*-dk:TODO*/ }
+    auto _Send(::stdnet::_Hidden::_Context_base::_Send_operation*) -> bool override { return {}; /*-dk:TODO*/ }
+    auto _Resume_after(::stdnet::_Hidden::_Context_base::_Resume_after_operation*) -> bool override
+    {
+        //-dk:TODO
+        return {};
+    }
+    auto _Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation*) -> bool override
+    {
+        //-dk:TODO
+        return {};
+    }
 };
 
 // ----------------------------------------------------------------------------
