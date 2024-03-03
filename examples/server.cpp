@@ -24,6 +24,7 @@
 #include <stdnet/internet.hpp>
 #include <stdnet/io_context.hpp>
 #include <stdnet/socket.hpp>
+#include <stdnet/timer.hpp>
 
 template <typename E>
 struct error_handler_base
@@ -96,6 +97,15 @@ int main()
         }, scope, acceptor)
         | stdexec::upon_stopped([]{ std::cout << "acceptor cancelled\n"; })
         );
+
+        scope.spawn(std::invoke([](auto scheduler)->exec::task<void>{
+            using namespace std::chrono_literals;
+            for (int i{}; i < 100; ++i)
+            {
+                co_await stdnet::async_resume_after(scheduler, 5'000'000us);
+                std::cout << "timer fired\n";
+            }
+        }, context.get_scheduler()));
 
         std::cout << "running context\n";
         context.run();

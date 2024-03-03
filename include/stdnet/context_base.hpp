@@ -25,6 +25,8 @@
 #include <chrono>
 #include <optional>
 #include <system_error>
+#include <sys/socket.h>
+#include <sys/time.h>
 
 // ----------------------------------------------------------------------------
 
@@ -53,10 +55,10 @@ struct stdnet::_Hidden::_Context_base
         ::std::tuple<::msghdr, int, ::std::size_t>
         >;
     using _Resume_after_operation = ::stdnet::_Hidden::_Io_operation<
-        ::std::tuple<::std::chrono::microseconds>
+        ::std::tuple<::std::chrono::microseconds, ::timeval>
         >;
     using _Resume_at_operation = ::stdnet::_Hidden::_Io_operation<
-        ::std::tuple<::std::chrono::system_clock::time_point>
+        ::std::tuple<::std::chrono::system_clock::time_point, ::timespec>
         >;
 
     virtual ~_Context_base() = default;

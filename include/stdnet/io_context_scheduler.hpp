@@ -21,6 +21,7 @@
 #define INCLUDED_STDNET_IO_CONTEXT_SCHEDULER
 
 #include <stdnet/context_base.hpp>
+#include <stdnet/io_context_scheduler.hpp>
 #include <cassert>
 
 // ----------------------------------------------------------------------------
@@ -65,6 +66,10 @@ public:
     auto _Send(_Hidden::_Context_base::_Send_operation* _Op) -> bool
     {
         return this->_D_context->_Send(_Op);
+    }
+    auto _Resume_after(_Hidden::_Context_base::_Resume_after_operation* _Op) -> bool
+    {
+        return this->_D_context->_Resume_after(_Op);
     }
 };
 
