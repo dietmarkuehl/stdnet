@@ -70,4 +70,32 @@ struct stdnet::_Hidden::_Resume_after_desc
 
 // ----------------------------------------------------------------------------
 
+struct stdnet::_Hidden::_Resume_at_desc
+{
+    using _Operation = ::stdnet::_Hidden::_Context_base::_Resume_at_operation;
+    template <typename _Scheduler, typename>
+    struct _Data
+    {
+        using _Completion_signature = ::stdexec::set_value_t();
+
+        _Scheduler                              _D_scheduler;
+        ::std::chrono::system_clock::time_point _D_time;
+
+        auto _Id() const -> ::stdnet::_Hidden::_Socket_id { return {}; }
+        auto _Events() const { return decltype(POLLIN)(); }
+        auto _Get_scheduler() { return this->_D_scheduler; }
+        auto _Set_value(_Operation& _O, auto&& _Receiver)
+        {
+            ::stdexec::set_value(::std::move(_Receiver));
+        }
+        auto _Submit(auto* _Base) -> bool
+        {
+            ::std::get<0>(*_Base) = this->_D_time;
+            return this->_D_scheduler._Resume_at(_Base);
+        }
+    };
+};
+
+// ----------------------------------------------------------------------------
+
 #endif

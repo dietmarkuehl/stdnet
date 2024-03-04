@@ -102,8 +102,10 @@ int main()
             using namespace std::chrono_literals;
             for (int i{}; i < 100; ++i)
             {
-                co_await stdnet::async_resume_after(scheduler, 5'000'000us);
-                std::cout << "timer fired\n";
+                co_await stdnet::async_resume_after(scheduler, 1'000'000us);
+                std::cout << "relative timer fired\n";
+                co_await stdnet::async_resume_at(scheduler, ::std::chrono::system_clock::now() + 1s);
+                std::cout << "absolute timer fired\n";
             }
         }, context.get_scheduler()));
 

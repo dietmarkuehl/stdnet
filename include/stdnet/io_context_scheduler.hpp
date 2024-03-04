@@ -71,6 +71,10 @@ public:
     {
         return this->_D_context->_Resume_after(_Op);
     }
+    auto _Resume_at(_Hidden::_Context_base::_Resume_at_operation* _Op) -> bool
+    {
+        return this->_D_context->_Resume_at(_Op);
+    }
 };
 
 // ----------------------------------------------------------------------------

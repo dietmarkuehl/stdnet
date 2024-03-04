@@ -458,10 +458,41 @@ auto ::stdnet::_Hidden::_Libevent_context::_Resume_after(::stdnet::_Hidden::_Con
     return true;
 }
 
-auto ::stdnet::_Hidden::_Libevent_context::_Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation*) -> bool
+auto ::stdnet::_Hidden::_Libevent_context::_Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation* _Op) -> bool
 {
-    //-dk:TODO
-    return {};
+    auto _Now(::std::chrono::system_clock::now());
+    auto _Time(::std::get<0>(*_Op));
+    if (_Time <= _Now)
+    {
+        _Op->_Complete();
+        return false;
+    }
+
+    ::event* _Ev(evtimer_new(this->_Context.get(), _Libevent_callback, _Op));
+    if (_Ev == nullptr)
+    {
+        _Op->_Error(::std::error_code(evutil_socket_geterror(_Handle), stdnet::_Hidden::_Libevent_error_category()));
+        return false;
+    }
+    _Op->_Context = this;
+    _Op->_Extra = std::unique_ptr<void, auto(*)(void*)->void>(
+        _Ev,
+        +[](void* _Ev){ ::event_free(static_cast<::event*>(_Ev)); });
+
+    _Op->_Work = [](::stdnet::_Hidden::_Context_base& _Ctxt, ::stdnet::_Hidden::_Io_base* _Op)
+        {
+            auto& _Completion(*static_cast<_Resume_after_operation*>(_Op));
+            _Completion._Complete();
+            return true;
+        };
+    
+    constexpr unsigned long long _F(1'000'000);
+    ::std::chrono::microseconds _Duration(_Time - _Now);
+    ::timeval& _Tv(::std::get<1>(*_Op));
+    _Tv.tv_sec = _Duration.count() / _F;
+    _Tv.tv_usec = 1000 * _Duration.count() % _F;
+    ::evtimer_add(_Ev, &_Tv);
+    return true;
 }
 
 // ----------------------------------------------------------------------------

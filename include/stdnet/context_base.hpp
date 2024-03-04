@@ -58,7 +58,7 @@ struct stdnet::_Hidden::_Context_base
         ::std::tuple<::std::chrono::microseconds, ::timeval>
         >;
     using _Resume_at_operation = ::stdnet::_Hidden::_Io_operation<
-        ::std::tuple<::std::chrono::system_clock::time_point, ::timespec>
+        ::std::tuple<::std::chrono::system_clock::time_point, ::timeval>
         >;
 
     virtual ~_Context_base() = default;
