@@ -487,7 +487,7 @@ auto ::stdnet::_Hidden::_Libevent_context::_Resume_at(::stdnet::_Hidden::_Contex
         };
     
     constexpr unsigned long long _F(1'000'000);
-    ::std::chrono::microseconds _Duration(_Time - _Now);
+    auto _Duration(::std::chrono::duration_cast<::std::chrono::microseconds>(_Time - _Now));
     ::timeval& _Tv(::std::get<1>(*_Op));
     _Tv.tv_sec = _Duration.count() / _F;
     _Tv.tv_usec = 1000 * _Duration.count() % _F;

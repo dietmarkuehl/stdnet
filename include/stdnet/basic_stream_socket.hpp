@@ -49,9 +49,9 @@ public:
     }
     basic_stream_socket(::stdnet::io_context& _Context, endpoint_type const& _Endpoint)
         : stdnet::basic_socket<_Protocol>(_Context.get_scheduler()._Get_context(),
-            ::std::invoke([_Protocol = _Endpoint.protocol(), &_Context]{
+            ::std::invoke([_P = _Endpoint.protocol(), &_Context]{
                 ::std::error_code _Error{};
-                auto _Rc(_Context._Make_socket(_Protocol.family(), _Protocol.type(), _Protocol.protocol(), _Error));
+                auto _Rc(_Context._Make_socket(_P.family(), _P.type(), _P.protocol(), _Error));
                 if (_Error)
                 {
                     throw ::std::system_error(_Error);

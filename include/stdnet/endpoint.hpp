@@ -20,6 +20,7 @@
 #ifndef INCLUDED_STDNET_ENDPOINT
 #define INCLUDED_STDNET_ENDPOINT
 
+#include <cstring>
 #include <sys/socket.h>
 
 // ----------------------------------------------------------------------------

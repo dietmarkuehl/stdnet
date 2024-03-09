@@ -37,11 +37,16 @@
 namespace stdnet::ip
 {
     using port_type = ::std::uint_least16_t;
+
+    class tcp;
+    class address_v4;
+    class address;
+    template <typename> class basic_endpoint;
 }
 
 // ----------------------------------------------------------------------------
 
-class ::stdnet::ip::tcp
+class stdnet::ip::tcp
 {
 private:
     int _D_family;
@@ -65,7 +70,7 @@ public:
 
 // ----------------------------------------------------------------------------
 
-class ::stdnet::ip::address_v4
+class stdnet::ip::address_v4
 {
 public:
     using uint_type = uint_least32_t;
@@ -128,7 +133,7 @@ basic_ostream<CharT, Traits>& os, const address_v4& addr);
 
 // ----------------------------------------------------------------------------
 
-class ::stdnet::ip::address
+class stdnet::ip::address
 {
 private:
     union _Address_t
@@ -147,7 +152,7 @@ public:
         this->_D_address._Storage.ss_family = PF_INET;
     }
     constexpr address(address const&) noexcept = default;
-    constexpr address(::stdnet::ip::address_v4 const& _Address) noexcept
+    /*-dk:TODO constexpr*/ address(::stdnet::ip::address_v4 const& _Address) noexcept
     {
         this->_D_address._Inet.sin_family = AF_INET;
         this->_D_address._Inet.sin_addr.s_addr = htonl(_Address.to_uint());
@@ -175,7 +180,7 @@ public:
 // ----------------------------------------------------------------------------
 
 template <typename _Protocol>
-class ::stdnet::ip::basic_endpoint
+class stdnet::ip::basic_endpoint
     : public ::stdnet::_Hidden::_Endpoint
 {
 public:
