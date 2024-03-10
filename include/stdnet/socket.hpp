@@ -81,6 +81,7 @@ struct stdnet::_Hidden::_Accept_desc
         using _Completion_signature = ::stdexec::set_value_t(_Socket_t);
 
         _Acceptor_t& _D_acceptor;
+        _Data(_Acceptor_t& _A): _D_acceptor(_A) {}
 
         auto _Id() const { return this->_D_acceptor._Id(); }
         auto _Events() const { return POLLIN; }
