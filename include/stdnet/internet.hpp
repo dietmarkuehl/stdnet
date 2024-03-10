@@ -106,6 +106,15 @@ public:
     static constexpr auto any() noexcept -> address_v4 { return address_v4(); }
     static constexpr auto loopback() noexcept -> address_v4 { return address_v4(0x7F'00'00'01u); }
     static constexpr auto broadcast() noexcept -> address_v4 { return address_v4(0xFF'FF'FF'FFu); }
+
+    friend ::std::ostream& operator<< (::std::ostream& _Out, address_v4 const& _A)
+    {
+        return _Out << ((_A._D_address >> 24) & 0xFFu) << '.'
+                    << ((_A._D_address >> 16) & 0xFFu) << '.'
+                    << ((_A._D_address >>  8) & 0xFFu) << '.'
+                    << ((_A._D_address >>  0) & 0xFFu)
+            ;
+    }
 };
 
 #if 0
@@ -167,14 +176,24 @@ public:
     auto _Data() const -> ::sockaddr_storage const& { return this->_D_address._Storage; }
     constexpr auto is_v4() const noexcept -> bool { return this->_D_address._Storage.ss_family == PF_INET; }
     constexpr auto is_v6() const noexcept -> bool { return this->_D_address._Storage.ss_family == PF_INET6; }
-    constexpr auto to_v4() -> ::stdnet::ip::address_v4 const;
-    constexpr auto to_v6() -> ::stdnet::ip::address_v6 const;
+    constexpr auto to_v4() const -> ::stdnet::ip::address_v4
+    {
+        return ::stdnet::ip::address_v4(ntohl(reinterpret_cast<::sockaddr_in const&>(this->_D_address._Storage).sin_addr.s_addr));
+    }
+    constexpr auto to_v6() const -> ::stdnet::ip::address_v6;
     constexpr auto is_unspecified() const noexcept -> bool;
     constexpr auto is_loopback() const noexcept -> bool;
     constexpr auto is_multicast() const noexcept -> bool;
     template<class _Allocator = ::std::allocator<char>>
     auto to_string(_Allocator const& = _Allocator()) const
         -> ::std::basic_string<char, ::std::char_traits<char>, _Allocator>;
+    friend ::std::ostream& operator<< (::std::ostream& _Out, address const& _A)
+    {
+        if (_A.is_v4())
+            return _Out << _A.to_v4();
+        else
+            return _Out << "TODO";
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -190,6 +209,10 @@ public:
         : basic_endpoint(::stdnet::ip::address(), ::stdnet::ip::port_type())
     {
     }
+    constexpr basic_endpoint(::stdnet::_Hidden::_Endpoint const& _Ep) noexcept
+        : ::stdnet::_Hidden::_Endpoint(_Ep)
+    {
+    }
     constexpr basic_endpoint(const protocol_type&, ::stdnet::ip::port_type) noexcept;
     constexpr basic_endpoint(const ip::address& _Address, ::stdnet::ip::port_type _Port) noexcept
         : ::stdnet::_Hidden::_Endpoint(&_Address._Data(), _Address.is_v4()? sizeof(::sockaddr_in): sizeof(::sockaddr_in6))
@@ -203,14 +226,35 @@ public:
     {
         return this->_Storage().ss_family == PF_INET? ::stdnet::ip::tcp::v4(): ::stdnet::ip::tcp::v6();
     }
-    constexpr auto address() const noexcept -> ::stdnet::ip::address;
+    /*-dk:TODO constexpr*/ auto address() const noexcept -> ::stdnet::ip::address
+    {
+        switch (this->_Storage().ss_family)
+        {
+        default: return {};
+        case PF_INET: return ::stdnet::ip::address_v4(ntohl(reinterpret_cast<::sockaddr_in const&>(this->_Storage()).sin_addr.s_addr));
+        //-dk:TODO case PF_INET6: return ::stdnet::ip::address_v6(reinterpret_cast<::sockaddr_in6 const&>(this->_Storage()).sin6_addr.s_addr);
+        }
+    }
     auto address(::stdnet::ip::address const&) noexcept -> void;
-    constexpr auto port() const noexcept -> ::stdnet::ip::port_type;
+    constexpr auto port() const noexcept -> ::stdnet::ip::port_type
+    {
+        switch (this->_Storage().ss_family)
+        {
+            default: return {};
+            case PF_INET: return ntohs(reinterpret_cast<::sockaddr_in const&>(this->_Storage()).sin_port);
+            case PF_INET6: return ntohs(reinterpret_cast<::sockaddr_in6 const&>(this->_Storage()).sin6_port);
+        }
+    }
     auto port(::stdnet::ip::port_type) noexcept -> void;
 
     auto _Size() const -> ::socklen_t
     {
         return this->_Storage().ss_family == PF_INET? sizeof(::sockaddr_in): sizeof(::sockaddr_in6);
+    }
+
+    friend ::std::ostream& operator<< (std::ostream& _Out, basic_endpoint const& _Ep)
+    {
+        return _Out << _Ep.address() << ":" << _Ep.port();
     }
 };
 

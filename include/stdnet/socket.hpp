@@ -78,7 +78,8 @@ struct stdnet::_Hidden::_Accept_desc
     {
         using _Acceptor_t = ::std::remove_cvref_t<_Acceptor>;
         using _Socket_t = _Acceptor_t::socket_type;
-        using _Completion_signature = ::stdexec::set_value_t(_Socket_t);
+        using _Completion_signature
+            = ::stdexec::set_value_t(_Socket_t, typename _Socket_t::endpoint_type);
 
         _Acceptor_t& _D_acceptor;
         _Data(_Acceptor_t& _A): _D_acceptor(_A) {}
@@ -90,10 +91,12 @@ struct stdnet::_Hidden::_Accept_desc
         {
             ::stdexec::set_value(::std::move(_Receiver),
                                  _Socket_t(this->_D_acceptor.get_scheduler()._Get_context(),
-                                           ::std::move(*::std::get<2>(_O))));
+                                           ::std::move(*::std::get<2>(_O))),
+                                 typename _Socket_t::endpoint_type(::std::get<0>(_O)));
         }
         auto _Submit(auto* _Base) -> bool
         {
+            ::std::get<1>(*_Base) = sizeof(::std::get<0>(*_Base));
             return this->_D_acceptor.get_scheduler()._Accept(_Base);
         }
     };

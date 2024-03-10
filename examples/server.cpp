@@ -88,8 +88,9 @@ int main()
         scope.spawn(std::invoke([](auto& scope, auto& acceptor)->exec::task<void>{
             while (true)
             {
+                auto[stream, endpoint] = co_await stdnet::async_accept(acceptor);
                 scope.spawn(
-                    make_client(scope, co_await stdnet::async_accept(acceptor))
+                    make_client(scope, std::move(stream))
                     | stdexec::upon_stopped([]{ std::cout << "client cancelled\n"; })
                     );
                 std::cout << "accepted a client\n";

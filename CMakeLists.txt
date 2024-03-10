@@ -45,8 +45,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 list(APPEND stdnet_examples
     client
-    server
+    simple-http-server
     overview
+    server
 )
 foreach(example ${stdnet_examples})
     add_executable(${example} examples/${example}.cpp)
