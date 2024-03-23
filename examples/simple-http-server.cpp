@@ -26,11 +26,22 @@
 
 // ----------------------------------------------------------------------------
 
+auto make_client(auto stream) -> exec::task<void>
+{
+    std::cout << "starting client\n";
+    co_await stdexec::just();
+    std::cout << "stopping client\n";
+}
+
 auto make_server(auto& context, auto endpoint) -> exec::task<void>
 {
     stdnet::ip::tcp::acceptor acceptor(context, endpoint);
-    auto[stream, client] = co_await stdnet::async_accept(acceptor);
-    std::cout << "received a connection from '" << client << "'\n";
+    while (true)
+    {
+        auto[stream, client] = co_await stdnet::async_accept(acceptor);
+        std::cout << "received a connection from '" << client << "'\n";
+        make_client(::std::move(stream));
+    }
 }
 
 int main()

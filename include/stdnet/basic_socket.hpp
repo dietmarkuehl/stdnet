@@ -24,6 +24,7 @@
 #include <stdnet/socket_base.hpp>
 #include <stdnet/io_context_scheduler.hpp>
 #include <stdnet/internet.hpp>
+#include <iostream> //-dk:TODO
 
 // ----------------------------------------------------------------------------
 
@@ -36,9 +37,10 @@ public:
     using protocol_type      = _Protocol;
 
 private:
+    static constexpr ::stdnet::_Hidden::_Socket_id _S_unused{0xffff'ffff};
     ::stdnet::_Hidden::_Context_base* _D_context;
     protocol_type                     _D_protocol{::stdnet::ip::tcp::v6()}; 
-    ::stdnet::_Hidden::_Socket_id     _D_id{};
+    ::stdnet::_Hidden::_Socket_id     _D_id{_S_unused};
 
 public:
     basic_socket()
@@ -49,6 +51,15 @@ public:
         : _D_context(_Context)
         , _D_id(_Id)
     {
+    }
+    ~basic_socket()
+    {
+        ::std::cout << "destroying socket\n";
+        if (this->_D_id != _S_unused)
+        {
+            ::std::error_code _Error{};
+            this->_D_context->_Release(this->_D_id, _Error);
+        }
     }
     auto get_scheduler() noexcept -> scheduler_type
     {
