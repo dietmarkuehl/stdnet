@@ -33,14 +33,14 @@ auto make_client(auto stream) -> exec::task<void>
     std::cout << "stopping client\n";
 }
 
-auto make_server(auto& context, auto endpoint) -> exec::task<void>
+auto make_server(auto& context, auto& scope, auto endpoint) -> exec::task<void>
 {
     stdnet::ip::tcp::acceptor acceptor(context, endpoint);
     while (true)
     {
         auto[stream, client] = co_await stdnet::async_accept(acceptor);
         std::cout << "received a connection from '" << client << "'\n";
-        make_client(::std::move(stream));
+        scope.spawn(make_client(::std::move(stream)));
     }
 }
 
@@ -53,7 +53,7 @@ int main()
         stdnet::ip::tcp::endpoint endpoint(stdnet::ip::address_v4::any(), 12345);
         exec::async_scope         scope;
 
-        scope.spawn(make_server(context, endpoint));
+        scope.spawn(make_server(context, scope, endpoint));
 
         context.run();
     }
