@@ -52,9 +52,14 @@ public:
         , _D_id(_Id)
     {
     }
+    basic_socket(basic_socket&& _Other)
+        : _D_context(_Other._D_context)
+        , _D_protocol(_Other._D_protocol)
+        , _D_id(::std::exchange(_Other._D_id, _S_unused))
+    {
+    }
     ~basic_socket()
     {
-        ::std::cout << "destroying socket\n";
         if (this->_D_id != _S_unused)
         {
             ::std::error_code _Error{};

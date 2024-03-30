@@ -327,8 +327,11 @@ public:
     basic_socket_acceptor(::stdnet::basic_socket_acceptor<_OtherProtocol>&&);
     ~basic_socket_acceptor()
     {
-        ::std::error_code _Error{};
-        this->close(_Error);
+        if (this->_D_id != ::stdnet::_Hidden::_Socket_id::_Invalid)
+        {
+            ::std::error_code _Error{};
+            this->close(_Error);
+        }
     }
     basic_socket_acceptor& operator=(basic_socket_acceptor const&) = delete;
     basic_socket_acceptor& operator=(basic_socket_acceptor&&);
