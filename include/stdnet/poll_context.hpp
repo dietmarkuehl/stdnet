@@ -164,7 +164,7 @@ struct stdnet::_Hidden::_Poll_context final
         auto _Id{_Completion->_Id};
         if (this->_D_sockets[_Id]._Blocking || !_Completion->_Work(*this, _Completion))
         {
-            this->_D_poll.emplace_back(this->_Native_handle(_Id), _Completion->_Event, short());
+            this->_D_poll.emplace_back(::pollfd{this->_Native_handle(_Id), short(_Completion->_Event), short()});
             this->_D_outstanding.emplace_back(_Completion);
             this->_Wakeup();
             return false;

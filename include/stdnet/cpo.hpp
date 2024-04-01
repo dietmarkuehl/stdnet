@@ -125,7 +125,7 @@ struct stdnet::_Hidden::_Cpo
             : _Desc::_Operation(_D._Id(), _D._Events())
             , _State_base<_Receiver>(::std::forward<_RT>(_R))
             , _D_data(::std::forward<_DT>(_D))
-            , _D_state(::stdexec::connect(_Up, _Upstream_receiver<_Receiver>(this)))
+            , _D_state(::stdexec::connect(_Up, _Upstream_receiver<_Receiver>{this}))
         {
         }
         friend auto tag_invoke(::stdexec::start_t, _State& _Self) noexcept -> void
@@ -199,7 +199,7 @@ struct stdnet::_Hidden::_Cpo
     friend auto tag_invoke(_Cpo const&, _Upstream&& _U, _Args_t&&... _Args)
     {
         using _Data = _Desc::template _Data<_Args_t...>;
-        return _Sender<_Data, ::std::remove_cvref_t<_Upstream>>{_Data(::std::forward<_Args_t>(_Args)...), ::std::forward<_Upstream>(_U)};
+        return _Sender<_Data, ::std::remove_cvref_t<_Upstream>>{_Data{::std::forward<_Args_t>(_Args)...}, ::std::forward<_Upstream>(_U)};
     }
 
     template <typename _Arg0_t, typename... _Args_t>

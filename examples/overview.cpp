@@ -181,7 +181,7 @@ int main(int ac, char* av[])
         std::invoke([](event_base* eb, int timeout)->exec::task<void>{
             while (true)
             {
-                co_await timer_sender(eb, {timeout, 0});
+                co_await timer_sender{eb, {timeout, 0}};
                 std::cout << "time passed\n";
             }
         }, context.eb, ac == 2? std::stoi(av[1]): 1)
