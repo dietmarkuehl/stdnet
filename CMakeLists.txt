@@ -41,7 +41,7 @@ add_subdirectory(libevent)
 # --- stdnet -------------------------------------------------------------------
 include_directories(include)
 add_compile_options(-Wno-deprecated-declarations -Wno-dangling-field)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 list(APPEND stdnet_examples
     client

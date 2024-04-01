@@ -22,23 +22,42 @@
 #include <stdnet/buffer.hpp>
 #include <exec/async_scope.hpp>
 #include <exec/task.hpp>
+#include <algorithm>
 #include <exception>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <ranges>
 
 // ----------------------------------------------------------------------------
 
-std::string const hello("<html><head><title>Hello</title></head><body>Hello, world!</body><html>");
+std::string const hello("<html><head><title>Hello</title></head><body>Hello, new world!</body><html>");
 
 // ----------------------------------------------------------------------------
 
 auto make_client(auto stream) -> exec::task<void>
 {
-    char buffer[1024];
     std::cout << "starting client\n";
-    auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer));
-    std::cout << "read n=" << n << " -> '" << std::string_view(buffer, n) << "'\n";
+    char        buffer[1024];
+    std::size_t len{};
+    while (true)
+    {
+        auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer + len, std::min(10ul, sizeof(buffer) - len)));
+        std::cout << "read n=" << n << " -> '" << std::string_view(buffer + len, n) << "'\n";
+        if (n == 0u)
+        {
+            std::cout << "failed to read complete buffer\n"; //-dk:TODO send error
+        }
+        auto start(4 < len? len - 4: 0);
+        len += n;
+#if 0
+        if (std::ranges::contains_subrange(std::string_view(buffer + start, buffer + len), std::string_view("\r\n\r\n")))
+        {
+            std::cout << "found separator\n";
+            break;
+        }
+#endif
+    }
 
     std::ostringstream response;
     response << "HTTP/1.1 200 OK\r\n"
