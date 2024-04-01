@@ -19,17 +19,37 @@
 
 #include <stdnet/socket.hpp>
 #include <stdnet/internet.hpp>
+#include <stdnet/buffer.hpp>
 #include <exec/async_scope.hpp>
 #include <exec/task.hpp>
 #include <exception>
 #include <iostream>
+#include <sstream>
+#include <string>
+
+// ----------------------------------------------------------------------------
+
+std::string const hello("<html><head><title>Hello</title></head><body>Hello, world!</body><html>");
 
 // ----------------------------------------------------------------------------
 
 auto make_client(auto stream) -> exec::task<void>
 {
+    char buffer[1024];
     std::cout << "starting client\n";
-    co_await stdexec::just();
+    auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer));
+    std::cout << "read n=" << n << " -> '" << std::string_view(buffer, n) << "'\n";
+
+    std::ostringstream response;
+    response << "HTTP/1.1 200 OK\r\n"
+             << "Content-Length: " << hello.size() << "\r\n"
+             << "\r\n"
+             << hello
+             ;
+    auto r = response.str();
+    auto rn = co_await stdnet::async_send(stream, stdnet::buffer(r.c_str(), r.size()));
+    std::cout << "response size=" << r.size() << " sent=" << rn << "\n";
+
     std::cout << "stopping client\n";
 }
 

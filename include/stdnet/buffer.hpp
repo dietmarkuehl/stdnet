@@ -54,8 +54,8 @@ namespace stdnet
 
     template <::std::size_t _S>
     auto buffer(char (&)[_S]) -> ::stdnet::mutable_buffer;
-    template <::std::size_t _S>
-    auto buffer(char (&)[_S], ::std::size_t) -> ::stdnet::mutable_buffer;
+    auto buffer(char*, ::std::size_t) -> ::stdnet::mutable_buffer;
+    auto buffer(char const*, ::std::size_t) -> ::stdnet::const_buffer;
 }
 
 // ----------------------------------------------------------------------------
@@ -97,17 +97,29 @@ struct stdnet::mutable_buffer
     auto size() -> ::std::size_t { return 1u; }
 };
 
+struct stdnet::const_buffer
+{
+    ::iovec _Vec;
+    const_buffer(void const* _B, ::std::size_t _L): _Vec{ .iov_base = const_cast<void*>(_B), .iov_len = _L } {}
+
+    auto data() -> ::iovec*      { return &this->_Vec; }
+    auto size() -> ::std::size_t { return 1u; }
+};
+
 template <::std::size_t _S>
 inline auto stdnet::buffer(char (&_B)[_S]) -> ::stdnet::mutable_buffer
 {
     return ::stdnet::mutable_buffer(_B, _S);
 }
 
-template <::std::size_t _S>
-inline auto stdnet::buffer(char (& _B)[_S], ::std::size_t _Size) -> ::stdnet::mutable_buffer
+inline auto stdnet::buffer(char* _B, ::std::size_t _Size) -> ::stdnet::mutable_buffer
 {
-    assert(_Size <= _S);
     return ::stdnet::mutable_buffer(_B, _Size);
+}
+
+inline auto stdnet::buffer(char const* _B, ::std::size_t _Size) -> ::stdnet::const_buffer
+{
+    return ::stdnet::const_buffer(_B, _Size);
 }
 
 // ----------------------------------------------------------------------------
