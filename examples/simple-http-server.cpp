@@ -35,6 +35,28 @@ std::string const hello("<html><head><title>Hello</title></head><body>Hello, new
 
 // ----------------------------------------------------------------------------
 
+struct parser
+{
+    char const* it{nullptr};
+    char const* end{it};
+
+    bool empty() const { return it == end; }
+    std::string_view find(char c)
+    {
+        auto f{std::find(it, end, c)};
+        auto begin{it};
+        it = f;
+        return {begin, it == end? it: it++};
+    }
+    std::string_view search(std::string_view v)
+    {
+        auto s{std::search(it, end, v.begin(), v.end())};
+        auto begin{it};
+        it = s != end? s + v.size(): s;
+        return {begin, s};
+    }
+};
+
 auto make_client(auto stream) -> exec::task<void>
 {
     std::cout << "starting client\n";
@@ -43,20 +65,35 @@ auto make_client(auto stream) -> exec::task<void>
     while (true)
     {
         auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer + len, std::min(10ul, sizeof(buffer) - len)));
-        std::cout << "read n=" << n << " -> '" << std::string_view(buffer + len, n) << "'\n";
         if (n == 0u)
         {
             std::cout << "failed to read complete buffer\n"; //-dk:TODO send error
+            break;
         }
         auto start(4 < len? len - 4: 0);
         len += n;
-#if 0
-        if (std::ranges::contains_subrange(std::string_view(buffer + start, buffer + len), std::string_view("\r\n\r\n")))
+        auto separator{std::ranges::search(std::string_view(buffer + start, buffer + len), std::string_view("\r\n\r\n"))};
+        if (not separator.empty())
         {
-            std::cout << "found separator\n";
+            std::cout << "found end of header\n";
+            char const* end = separator.end() - 2;
+            parser p{buffer, end};
+            auto method{p.find(' ')};
+            auto uri{p.find(' ')};
+            auto version{p.search("\r\n")};
+
+            std::cout << "method='" << method << "'\n";
+            std::cout << "uri='" << uri << "'\n";
+            std::cout << "version='" << version << "'\n";
+
+            while (not p.empty())
+            {
+                auto key{p.find(':')};
+                auto value{p.search("\r\n")};
+                std::cout << "key='" << key << "' value='" << value << "\n";
+            }
             break;
         }
-#endif
     }
 
     std::ostringstream response;
