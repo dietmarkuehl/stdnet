@@ -24,12 +24,15 @@ RM       = rm -f
 default: test
 
 stdexec:
-        git clone https://github.com/NVIDIA/stdexec
+	git clone https://github.com/NVIDIA/stdexec
+
+libevent:
+	git clone https://github.com/libevent/libevent
 
 test: build
 	./build/test_stdnet
 
-build:  stdexec
+build:  stdexec libevent
 	@mkdir -p build
 	cd build; cmake ..
 	cmake --build build
