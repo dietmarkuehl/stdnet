@@ -17,6 +17,8 @@
 #
 #  ----------------------------------------------------------------------------
 
+COMPILER = unknown
+BUILD    = build/$(COMPILER)
 RM       = rm -f
 
 .PHONY: default build test distclean clean
@@ -30,15 +32,15 @@ libevent:
 	git clone https://github.com/libevent/libevent
 
 test: build
-	./build/test_stdnet
+	./$(BUILD)/test_stdnet
 
 build:  stdexec libevent
-	@mkdir -p build
-	cd build; cmake ..
-	cmake --build build
+	@mkdir -p $(BUILD)
+	cd $(BUILD); cmake ../..
+	cmake --build $(BUILD)
 
 clean:
 	$(RM) mkerr olderr *~
 
 distclean: clean
-	$(RM) -r build
+	$(RM) -r $(BUILD)

@@ -176,7 +176,7 @@ public:
     auto _Data() const -> ::sockaddr_storage const& { return this->_D_address._Storage; }
     constexpr auto is_v4() const noexcept -> bool { return this->_D_address._Storage.ss_family == PF_INET; }
     constexpr auto is_v6() const noexcept -> bool { return this->_D_address._Storage.ss_family == PF_INET6; }
-    constexpr auto to_v4() const -> ::stdnet::ip::address_v4
+    /*constexpr -dk:TODO*/ auto to_v4() const -> ::stdnet::ip::address_v4
     {
         return ::stdnet::ip::address_v4(ntohl(reinterpret_cast<::sockaddr_in const&>(this->_D_address._Storage).sin_addr.s_addr));
     }

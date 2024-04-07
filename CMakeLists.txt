@@ -40,13 +40,13 @@ add_subdirectory(libevent)
 
 # --- stdnet -------------------------------------------------------------------
 include_directories(include)
-add_compile_options(-Wno-deprecated-declarations -Wno-dangling-field)
+add_compile_options(-Wno-deprecated-declarations)
 set(CMAKE_CXX_STANDARD 23)
 
 list(APPEND stdnet_examples
+    overview
     client
     simple-http-server
-    overview
     server
 )
 foreach(example ${stdnet_examples})
