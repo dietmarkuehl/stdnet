@@ -20,7 +20,9 @@
 #include <stdnet/socket.hpp>
 #include <stdnet/internet.hpp>
 #include <stdnet/buffer.hpp>
+#include <stdnet/timer.hpp>
 #include <exec/async_scope.hpp>
+#include <exec/when_any.hpp>
 #include <exec/task.hpp>
 #include <algorithm>
 #include <exception>
@@ -48,6 +50,11 @@ struct parser
         it = f;
         return {begin, it == end? it: it++};
     }
+    void skip_whitespace()
+    {
+        while (it != end && *it == ' ' || *it == '\t')
+            ++it;
+    }
     std::string_view search(std::string_view v)
     {
         auto s{std::search(it, end, v.begin(), v.end())};
@@ -57,66 +64,111 @@ struct parser
     }
 };
 
-auto make_client(auto stream) -> exec::task<void>
+template <typename Stream>
+struct buffered_stream
 {
-    std::cout << "starting client\n";
-    char        buffer[1024];
-    std::size_t len{};
-    while (true)
+    static constexpr char sep[]{ '\r', '\n', '\r', '\n' };
+    Stream            stream;
+    std::vector<char> buffer = std::vector<char>(1024u);
+    std::size_t       pos{};
+    std::size_t       end{};
+
+    void consume()
     {
-        auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer + len, std::min(10ul, sizeof(buffer) - len)));
-        if (n == 0u)
+        buffer.erase(buffer.begin(), buffer.begin() + pos);
+        end -= pos;
+        pos = 0;
+    }
+    auto read_head() -> exec::task<std::string_view>
+    {
+        while (true)
         {
-            std::cout << "failed to read complete buffer\n"; //-dk:TODO send error
-            break;
-        }
-        auto start(4 < len? len - 4: 0);
-        len += n;
-        auto separator{std::ranges::search(std::string_view(buffer + start, buffer + len), std::string_view("\r\n\r\n"))};
-        if (not separator.empty())
-        {
-            std::cout << "found end of header\n";
-            char const* end = separator.end() - 2;
-            parser p{buffer, end};
-            auto method{p.find(' ')};
-            auto uri{p.find(' ')};
-            auto version{p.search("\r\n")};
-
-            std::cout << "method='" << method << "'\n";
-            std::cout << "uri='" << uri << "'\n";
-            std::cout << "version='" << version << "'\n";
-
-            while (not p.empty())
-            {
-                auto key{p.find(':')};
-                auto value{p.search("\r\n")};
-                std::cout << "key='" << key << "' value='" << value << "\n";
-            }
-            break;
+            if (buffer.size() == end)
+                buffer.resize(buffer.size() * 2);
+            auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer.data() + end, buffer.size() - end));
+            if (n == 0u)
+                co_return {};
+            end += n;
+            pos = std::string_view(buffer.data(), end).find(sep);
+            if (pos != std::string_view::npos)
+                co_return {buffer.data(), pos += std::size(sep)};
         }
     }
-
-    std::ostringstream response;
-    response << "HTTP/1.1 200 OK\r\n"
-             << "Content-Length: " << hello.size() << "\r\n"
+    auto write_response(std::string_view message, std::string_view response) -> exec::task<void>
+    {
+        std::ostringstream out;
+        out << "HTTP/1.1 " << message << "\r\n"
+             << "Content-Length: " << response.size() << "\r\n"
              << "\r\n"
-             << hello
              ;
-    auto r = response.str();
-    auto rn = co_await stdnet::async_send(stream, stdnet::buffer(r.c_str(), r.size()));
-    std::cout << "response size=" << r.size() << " sent=" << rn << "\n";
+        std::string head(out.str());
+        std::size_t p{}, n{};
+        do 
+            n = co_await stdnet::async_send(stream, stdnet::buffer(head.data() + p, head.size() - p));
+        while (0 < n && (p += n) != head.size());
 
-    std::cout << "stopping client\n";
+        p = 0;
+        do
+            n = co_await stdnet::async_send(stream, stdnet::buffer(response.data() + p, response.size() - p));
+        while (0 < n && (p += n) != response.size());
+    }
+};
+
+template <typename Stream>
+auto make_client(Stream s) -> exec::task<void>
+{
+    std::unique_ptr<char const, decltype([](char const* str){ std::cout << str; })> dtor("stopping client\n");
+    std::cout << "starting client\n";
+
+    buffered_stream<Stream> stream{std::move(s)};
+    bool keep_alive{true};
+
+    while (keep_alive)
+    {
+        auto head = co_await stream.read_head();
+        if (head.empty())
+            //-dk:TODO [try to] send an error
+            co_return;
+        parser p{head.begin(), head.end() - 2};
+        std::cout << "found end of header\n";
+        auto method{p.find(' ')};
+        auto uri{p.find(' ')};
+        auto version{p.search("\r\n")};
+
+        std::cout << "method='" << method << "'\n";
+        std::cout << "uri='" << uri << "'\n";
+        std::cout << "version='" << version << "'\n";
+
+        keep_alive = false;
+        while (not p.empty())
+        {
+            auto key{p.find(':')};
+            p.skip_whitespace();
+            auto value{p.search("\r\n")};
+            std::cout << "key='" << key << "' value='" << value << "\n";
+            if (key == "Connection" && value == "keep-alive")
+                keep_alive = true;
+        }
+        co_await stream.write_response("200 OK", hello);
+        stream.consume();
+        std::cout << "keep-alive=" << std::boolalpha << keep_alive << "\n";
+    }
 }
 
 auto make_server(auto& context, auto& scope, auto endpoint) -> exec::task<void>
 {
+    using namespace std::chrono_literals;
     stdnet::ip::tcp::acceptor acceptor(context, endpoint);
     while (true)
     {
         auto[stream, client] = co_await stdnet::async_accept(acceptor);
         std::cout << "received a connection from '" << client << "'\n";
-        scope.spawn(make_client(::std::move(stream)));
+        scope.spawn(exec::when_any(
+            stdnet::async_resume_after(context.get_scheduler(), 10s),
+            make_client(::std::move(stream))
+            )
+            | stdexec::upon_error([](auto){ std::cout << "error\n"; })
+            );
     }
 }
 
