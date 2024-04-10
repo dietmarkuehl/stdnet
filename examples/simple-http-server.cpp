@@ -67,7 +67,7 @@ struct parser
 template <typename Stream>
 struct buffered_stream
 {
-    static constexpr char sep[]{ '\r', '\n', '\r', '\n' };
+    static constexpr char sep[]{ '\r', '\n', '\r', '\n', '\0' };
     Stream            stream;
     std::vector<char> buffer = std::vector<char>(1024u);
     std::size_t       pos{};
@@ -91,7 +91,7 @@ struct buffered_stream
             end += n;
             pos = std::string_view(buffer.data(), end).find(sep);
             if (pos != std::string_view::npos)
-                co_return {buffer.data(), pos += std::size(sep)};
+                co_return {buffer.data(), pos += std::size(sep) - 1};
         }
     }
     auto write_response(std::string_view message, std::string_view response) -> exec::task<void>
