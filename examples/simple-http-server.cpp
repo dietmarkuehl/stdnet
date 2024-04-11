@@ -27,16 +27,13 @@
 #include <algorithm>
 #include <exception>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <ranges>
 
 using namespace std::chrono_literals;
 using namespace std::string_view_literals;
-
-// ----------------------------------------------------------------------------
-
-std::string const hello("<html><head><title>Hello</title></head><body>Hello, new world!</body><html>");
 
 // ----------------------------------------------------------------------------
 
@@ -91,6 +88,7 @@ struct buffered_stream
             auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer.data() + end, buffer.size() - end));
             if (n == 0u)
                 co_return {};
+            std::cout << "received='" << std::string_view(buffer.data() + end, buffer.data() + end + n) << "\n";
             end += n;
             pos = std::string_view(buffer.data(), end).find(sep);
             if (pos != std::string_view::npos)
@@ -149,7 +147,8 @@ auto read_http_request(auto& stream) -> exec::task<request>
 
 std::unordered_map<std::string, std::string> res
 {
-    {"/", "<html><head><title>Hello</title></head><body>Hello ACCU!</body></html>"}
+    {"/", "hello.html"},
+    {"/fav.png", "fav.png"}
 };
 
 template <typename Stream>
@@ -173,14 +172,16 @@ auto make_client(Stream s) -> exec::task<void>
         if (r.method == "GET"sv)
         {
             auto it = res.find(r.uri);
-            std::cout << "GETting '" << r.uri << "'->" << (it == res.end()? "404": "OK") << "\n";
+            std::cout << "getting '" << r.uri << "'->" << (it == res.end()? "404": "OK") << "\n";
             if (it == res.end())
             {
                 co_await stream.write_response("404 NOT FOUND", "not found");
             }
             else
             {
-                co_await stream.write_response("200 OK", it->second);
+                std::ifstream in(it->second);
+                std::string res(std::istreambuf_iterator<char>(in), {});
+                co_await stream.write_response("200 OK", res);
             }
         }
 
