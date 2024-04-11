@@ -31,6 +31,9 @@
 #include <string>
 #include <ranges>
 
+using namespace std::chrono_literals;
+using namespace std::string_view_literals;
+
 // ----------------------------------------------------------------------------
 
 std::string const hello("<html><head><title>Hello</title></head><body>Hello, new world!</body><html>");
@@ -114,6 +117,41 @@ struct buffered_stream
     }
 };
 
+struct request
+{
+    std::string              method, uri, version;
+    std::unordered_map<std::string, std::string> headers;
+    std::string              body;
+};
+
+auto read_http_request(auto& stream) -> exec::task<request>
+{
+    request r;
+    auto head = co_await stream.read_head();
+    if (not head.empty())
+    {
+        parser p{head.begin(), head.end() - 2};
+        r.method = p.find(' ');
+        r.uri = p.find(' ');
+        r.version = p.search("\r\n");
+
+        while (not p.empty())
+        {
+            std::string key{p.find(':')};
+            p.skip_whitespace();
+            auto value{p.search("\r\n")};
+            r.headers[key] = value;
+        }
+    }
+    stream.consume();
+    co_return r;
+}
+
+std::unordered_map<std::string, std::string> res
+{
+    {"/", "<html><head><title>Hello</title></head><body>Hello ACCU!</body></html>"}
+};
+
 template <typename Stream>
 auto make_client(Stream s) -> exec::task<void>
 {
@@ -125,39 +163,34 @@ auto make_client(Stream s) -> exec::task<void>
 
     while (keep_alive)
     {
-        auto head = co_await stream.read_head();
-        if (head.empty())
-            //-dk:TODO [try to] send an error
-            co_return;
-        parser p{head.begin(), head.end() - 2};
-        std::cout << "found end of header\n";
-        auto method{p.find(' ')};
-        auto uri{p.find(' ')};
-        auto version{p.search("\r\n")};
-
-        std::cout << "method='" << method << "'\n";
-        std::cout << "uri='" << uri << "'\n";
-        std::cout << "version='" << version << "'\n";
-
-        keep_alive = false;
-        while (not p.empty())
+        auto r = co_await read_http_request(stream);
+        if (r.method.empty())
         {
-            auto key{p.find(':')};
-            p.skip_whitespace();
-            auto value{p.search("\r\n")};
-            std::cout << "key='" << key << "' value='" << value << "\n";
-            if (key == "Connection" && value == "keep-alive")
-                keep_alive = true;
+            co_await stream.write_response("550 ERROR", "");
+            co_return;
         }
-        co_await stream.write_response("200 OK", hello);
-        stream.consume();
+
+        if (r.method == "GET"sv)
+        {
+            auto it = res.find(r.uri);
+            std::cout << "GETting '" << r.uri << "'->" << (it == res.end()? "404": "OK") << "\n";
+            if (it == res.end())
+            {
+                co_await stream.write_response("404 NOT FOUND", "not found");
+            }
+            else
+            {
+                co_await stream.write_response("200 OK", it->second);
+            }
+        }
+
+        keep_alive = r.headers["Connection"] == "keep-alive"sv;
         std::cout << "keep-alive=" << std::boolalpha << keep_alive << "\n";
     }
 }
 
 auto make_server(auto& context, auto& scope, auto endpoint) -> exec::task<void>
 {
-    using namespace std::chrono_literals;
     stdnet::ip::tcp::acceptor acceptor(context, endpoint);
     while (true)
     {

@@ -20,6 +20,8 @@
 COMPILER = unknown
 BUILD    = build/$(COMPILER)
 RM       = rm -f
+CMAKE_CC = $(CC)
+CMAKE_CXX = $(CXX)
 
 .PHONY: default build test distclean clean
 
@@ -36,7 +38,7 @@ test: build
 
 build:  stdexec libevent
 	@mkdir -p $(BUILD)
-	cd $(BUILD); cmake ../..
+	cd $(BUILD); cmake ../.. # -DCMAKE_C_COMPILER=$(CMAKE_CC) -DCMAKE_CC_COMPILER=$(CMAKE_CXX)
 	cmake --build $(BUILD)
 
 clean:
