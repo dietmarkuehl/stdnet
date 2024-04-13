@@ -88,7 +88,6 @@ struct buffered_stream
             auto n = co_await stdnet::async_receive(stream, stdnet::buffer(buffer.data() + end, buffer.size() - end));
             if (n == 0u)
                 co_return {};
-            std::cout << "received='" << std::string_view(buffer.data() + end, buffer.data() + end + n) << "\n";
             end += n;
             pos = std::string_view(buffer.data(), end).find(sep);
             if (pos != std::string_view::npos)
@@ -147,8 +146,8 @@ auto read_http_request(auto& stream) -> exec::task<request>
 
 std::unordered_map<std::string, std::string> res
 {
-    {"/", "hello.html"},
-    {"/fav.png", "fav.png"}
+    {"/", "data/hello.html"},
+    {"/fav.png", "data/fav.png"}
 };
 
 template <typename Stream>
