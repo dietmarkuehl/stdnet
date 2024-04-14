@@ -43,12 +43,31 @@ private:
     ::std::size_t                                         _Free{};
 
 public:
+    template <typename... _A_t>
+    auto _Emplace(_A_t&&...) -> ::stdnet::_Hidden::_Socket_id;
     auto _Insert(_Record _R) -> ::stdnet::_Hidden::_Socket_id;
     auto _Erase(::stdnet::_Hidden::_Socket_id _Id) -> void;
     auto operator[](::stdnet::_Hidden::_Socket_id _Id) -> _Record&;
 };
 
 // ----------------------------------------------------------------------------
+
+template <typename _Record>
+    template <typename... _A_t>
+inline auto stdnet::_Hidden::_Container<_Record>::_Emplace(_A_t&&... _A) -> ::stdnet::_Hidden::_Socket_id
+{
+    if (this->_Free == this->_Records.size())
+    {
+        this->_Records.emplace_back(std::in_place_index_t<1>(), std::forward<_A_t>(_A)...);
+        return ::stdnet::_Hidden::_Socket_id(this->_Free++);
+    }
+    else
+    {
+        ::std::size_t _Rc(std::exchange(this->_Free, ::std::get<0>(this->_Records[this->_Free])));
+        this->_Records[_Rc].template emplace<_Record>(std::forward<_A_t>(_A)...);
+        return ::stdnet::_Hidden::_Socket_id(_Rc);
+    }
+}
 
 template <typename _Record>
 inline auto stdnet::_Hidden::_Container<_Record>::_Insert(_Record _R) -> ::stdnet::_Hidden::_Socket_id

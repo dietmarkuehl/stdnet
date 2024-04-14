@@ -23,6 +23,7 @@
 #include <stdnet/netfwd.hpp>
 #include <stdnet/container.hpp>
 #include <stdnet/context_base.hpp>
+#include <stdnet/ring_buffer.hpp>
 
 #include <iostream> //-dk:TODO remove
 #include <functional>
@@ -36,10 +37,11 @@
 
 namespace stdnet::_Hidden
 {
-    class _Openssl_context;
-
     class _Openssl_error_category_t;
     auto _Openssl_error_category() -> _Openssl_error_category_t const&;
+
+    struct _Openssl_socket;
+    class _Openssl_context;
 }
 
 // ----------------------------------------------------------------------------
@@ -71,16 +73,59 @@ inline auto stdnet::_Hidden::_Openssl_error_category() -> stdnet::_Hidden::_Open
 
 // ----------------------------------------------------------------------------
 
+struct stdnet::_Hidden::_Openssl_socket
+{
+    using _Ssl_free_t = decltype([](auto s){ SSL_free(s); });
+
+    static constexpr int _Buffer_size = 1024;
+
+    ::stdnet::_Hidden::_Socket_id                 _D_upstream_id;
+    //toy::socket                      upstream;
+    std::unique_ptr<SSL, _Ssl_free_t>             _D_ssl;
+    ::stdnet::_Hidden::_Ring_buffer<_Buffer_size> _D_from_network{};
+    ::stdnet::_Hidden::_Ring_buffer<_Buffer_size> _D_to_network{};
+    ::stdnet::_Hidden::_Ring_buffer<_Buffer_size> _D_to_receive{};
+
+    BIO* _D_network_to_ssl{BIO_new(BIO_s_mem())}; 
+    BIO* _D_ssl_to_network{BIO_new(BIO_s_mem())};
+
+    explicit _Openssl_socket(::stdnet::_Hidden::_Socket_id _Id, SSL* _Ssl = nullptr)
+        : _D_upstream_id(_Id)
+        , _D_ssl(_Ssl)
+    {
+    }
+#if 0
+    signaller<SSL, decltype([](SSL* ssl){ return SSL_want_read(ssl); })> await_write{};
+    bool done                        {false};
+    toy::openssl::io_base*           outstanding{nullptr};
+
+    socket(toy::socket&& upstream, SSL* ssl)
+        : upstream(std::move(upstream))
+        , ssl(ssl)
+        , await_write(this->ssl.get())
+    {
+        if (!ssl)
+        {
+            throw std::system_error(ERR_get_error(), toy::openssl::ssl_category(), "creating SSL socket");
+        }
+        SSL_set_bio(this->ssl.get(), this->network_to_ssl, this->ssl_to_network);
+    }
+#endif
+};
+
+// ----------------------------------------------------------------------------
+
 class stdnet::_Hidden::_Openssl_context
     : public ::stdnet::_Hidden::_Context_base
 {
 private:
     using _Context_free_t = decltype([](auto* _Ctxt){ SSL_CTX_free(_Ctxt); });
+
     ::stdnet::_Hidden::_Context_base&           _D_base;
     ::std::unique_ptr<SSL_CTX, _Context_free_t> _D_context{::stdnet::_Hidden::_Openssl_context::_Make_context()};
-    //::stdnet::_Hidden::_Container<::stdnet::_Hidden::_Libevent_record> _D_sockets;
+    ::stdnet::_Hidden::_Container<::stdnet::_Hidden::_Openssl_socket> _D_sockets;
 
-    auto _Make_socket(int) -> ::stdnet::_Hidden::_Socket_id override;
+    auto _Make_socket(int, ::std::error_code& _Error) -> ::stdnet::_Hidden::_Socket_id override;
     auto _Make_socket(int, int, int, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id override;
     auto _Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&) -> void override;
     auto _Native_handle(::stdnet::_Hidden::_Socket_id) -> _Stdnet_native_handle_type override;
@@ -90,11 +135,11 @@ private:
 
     auto run_one() -> ::std::size_t override;
 
-    auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void override { /*-dk:TODO*/ }
-    auto _Accept(::stdnet::_Hidden::_Context_base::_Accept_operation*) -> bool override { /*-dk:TODO*/ return {}; }
-    auto _Connect(::stdnet::_Hidden::_Context_base::_Connect_operation*) -> bool override { /*-dk:TODO*/ return {}; }
-    auto _Receive(::stdnet::_Hidden::_Context_base::_Receive_operation*) -> bool override { /*-dk:TODO*/ return {}; }
-    auto _Send(::stdnet::_Hidden::_Context_base::_Send_operation*) -> bool override { /*-dk:TODO*/ return {}; }
+    auto _Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*) -> void override;
+    auto _Accept(::stdnet::_Hidden::_Context_base::_Accept_operation*) -> bool override;
+    auto _Connect(::stdnet::_Hidden::_Context_base::_Connect_operation*) -> bool override;
+    auto _Receive(::stdnet::_Hidden::_Context_base::_Receive_operation*) -> bool override;
+    auto _Send(::stdnet::_Hidden::_Context_base::_Send_operation*) -> bool override;
     auto _Resume_after(::stdnet::_Hidden::_Context_base::_Resume_after_operation*) -> bool override;
     auto _Resume_at(::stdnet::_Hidden::_Context_base::_Resume_at_operation*) -> bool override;
 
@@ -151,56 +196,119 @@ inline stdnet::_Hidden::_Openssl_context::_Openssl_context(
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Openssl_context::_Make_socket(int)
+inline auto stdnet::_Hidden::_Openssl_context::_Make_socket(int _Fd, ::std::error_code& _Error)
     -> ::stdnet::_Hidden::_Socket_id
 {
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Make_socket not implemented");
-    return {};
+    SSL* _Ssl(SSL_new(this->_D_context.get()));
+    if (!_Ssl)
+    {
+        _Error = ::std::error_code(ERR_get_error(), ::stdnet::_Hidden::_Openssl_error_category());
+        return ::stdnet::_Hidden::_Invalid;
+    }
+    if (!SSL_set_fd(_Ssl, _Fd))
+    {
+        _Error = ::std::error_code(ERR_get_error(), ::stdnet::_Hidden::_Openssl_error_category());
+        return ::stdnet::_Hidden::_Invalid;
+    }
+    auto _Id{this->_D_base._Make_socket(_Fd, _Error)};
+    return this->_D_sockets._Emplace(_Id, _Ssl);
 }
 
-inline auto stdnet::_Hidden::_Openssl_context::_Make_socket(int, int, int, ::std::error_code&)
+inline auto stdnet::_Hidden::_Openssl_context::_Make_socket(int _D, int _T, int _P, ::std::error_code& _Error)
     -> ::stdnet::_Hidden::_Socket_id
 {
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Make_socket(int, int, int) not implemented");
-    return {};
+    auto _Upstream_id{this->_D_base._Make_socket(_D, _T, _P, _Error)};
+    if (_Upstream_id == ::stdnet::_Hidden::_Socket_id::_Invalid)
+    {
+        return ::stdnet::_Hidden::_Socket_id::_Invalid;
+    }
+    return this->_D_sockets._Emplace(_Upstream_id);
 }
 
-inline auto stdnet::_Hidden::_Openssl_context::_Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&)
+inline auto stdnet::_Hidden::_Openssl_context::_Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error)
     -> void
 {
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Release not implemented");
+    auto _Upstream_id(this->_D_sockets[_Id]._D_upstream_id);
+    this->_D_sockets._Erase(_Id);
+    this->_D_base._Release(_Upstream_id, _Error);
 }
 
-inline auto stdnet::_Hidden::_Openssl_context::_Native_handle(::stdnet::_Hidden::_Socket_id)
+inline auto stdnet::_Hidden::_Openssl_context::_Native_handle(::stdnet::_Hidden::_Socket_id _Id)
     -> _Stdnet_native_handle_type
 {
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Native_handle not implemented");
+    std::cout << "native handle: " << _Id << "\n";
+    return this->_D_base._Native_handle(this->_D_sockets[_Id]._D_upstream_id);
+}
+
+inline auto stdnet::_Hidden::_Openssl_context::_Set_option(::stdnet::_Hidden::_Socket_id _Id,
+                                                           int _Level,
+                                                           int _Name,
+                                                           void const* _Data,
+                                                           ::socklen_t _Len,
+                                                           ::std::error_code& _Error)
+    -> void
+{
+    std::cout << "set option: " << _Id << "\n";
+    std::cout << "   upstream=" << this->_D_sockets[_Id]._D_upstream_id << "\n";
+    this->_D_base._Set_option(this->_D_sockets[_Id]._D_upstream_id, _Level, _Name, _Data, _Len, _Error);
+    std::cout << "set option done\n";
+}
+
+inline auto stdnet::_Hidden::_Openssl_context::_Bind(::stdnet::_Hidden::_Socket_id _Id,
+                                                     ::stdnet::_Hidden::_Endpoint const& _Ep,
+                                                     ::std::error_code& _Error)
+    -> void
+{
+    std::cout << "bind\n";
+    this->_D_base._Bind(this->_D_sockets[_Id]._D_upstream_id, _Ep, _Error);
+    std::cout << "bind done\n";
+}
+
+inline auto stdnet::_Hidden::_Openssl_context::_Listen(::stdnet::_Hidden::_Socket_id _Id, int _N, ::std::error_code& _Error)
+    -> void
+{
+    std::cout << "listen\n";
+    this->_D_base._Listen(this->_D_sockets[_Id]._D_upstream_id, _N, _Error);
+    std::cout << "listen done\n";
+}
+
+// ----------------------------------------------------------------------------
+
+inline auto stdnet::_Hidden::_Openssl_context::_Cancel(::stdnet::_Hidden::_Io_base*, ::stdnet::_Hidden::_Io_base*)
+    -> void
+{
+    throw std::runtime_error("openssl cancel not implemented");
+}
+
+inline auto stdnet::_Hidden::_Openssl_context::_Accept(::stdnet::_Hidden::_Context_base::_Accept_operation* _Op)
+    -> bool
+{
+    std::cout << "openssl Accept this=" << this << "\n";
+    ::std::get<3>(*_Op) = this;
+    _Op->_Context = this;
+    _Op->_Id = this->_D_sockets[_Op->_Id]._D_upstream_id;
+    return this->_D_base._Accept(_Op);
+}
+
+inline auto stdnet::_Hidden::_Openssl_context::_Connect(::stdnet::_Hidden::_Context_base::_Connect_operation*)
+    -> bool
+{
+    throw std::runtime_error("openssl connect not implemented");
     return {};
 }
 
-inline auto stdnet::_Hidden::_Openssl_context::_Set_option(::stdnet::_Hidden::_Socket_id, int, int, void const*, ::socklen_t, ::std::error_code&)
-    -> void
+inline auto stdnet::_Hidden::_Openssl_context::_Receive(::stdnet::_Hidden::_Context_base::_Receive_operation*)
+    -> bool
 {
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Set_option not implemented");
+    throw std::runtime_error("openssl receive not implemented");
+    return {};
 }
 
-inline auto stdnet::_Hidden::_Openssl_context::_Bind(::stdnet::_Hidden::_Socket_id, ::stdnet::_Hidden::_Endpoint const&, ::std::error_code&)
-    -> void
+inline auto stdnet::_Hidden::_Openssl_context::_Send(::stdnet::_Hidden::_Context_base::_Send_operation*)
+    -> bool
 {
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Bind not implemented");
-}
-
-inline auto stdnet::_Hidden::_Openssl_context::_Listen(::stdnet::_Hidden::_Socket_id, int, ::std::error_code&)
-    -> void
-{
-    /*-dk:TODO*/
-    throw ::std::runtime_error("openssl _Listen not implemented");
+    throw std::runtime_error("openssl send not implemented");
+    return {};
 }
 
 // ----------------------------------------------------------------------------

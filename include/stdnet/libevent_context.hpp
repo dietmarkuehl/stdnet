@@ -90,7 +90,7 @@ private:
     ::stdnet::_Hidden::_Container<::stdnet::_Hidden::_Libevent_record> _D_sockets;
     ::std::unique_ptr<::event_base, auto(*)(event_base*)->void>    _Context;
 
-    auto _Make_socket(int) -> ::stdnet::_Hidden::_Socket_id override;
+    auto _Make_socket(int, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id override;
     auto _Make_socket(int, int, int, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id override;
     auto _Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&) -> void override;
     auto _Native_handle(::stdnet::_Hidden::_Socket_id) -> _Stdnet_native_handle_type override;
@@ -127,23 +127,21 @@ inline stdnet::_Hidden::_Libevent_context::_Libevent_context(::event_base* _C)
 
 // ----------------------------------------------------------------------------
 
-inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id
+inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _Fd, ::std::error_code& _Error) -> ::stdnet::_Hidden::_Socket_id
 {
-    std::cout << "_Libevent _Make_socket\n";
     return this->_D_sockets._Insert(_Fd);
 }
 
 inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _D, int _T, int _P, ::std::error_code& _Error)
     -> ::stdnet::_Hidden::_Socket_id
 {
-    std::cout << "_Libevent _Make_socket\n";
     int _Fd(::socket(_D, _T, _P));
     if (_Fd < 0)
     {
         _Error = ::std::error_code(errno, ::std::system_category());
         return ::stdnet::_Hidden::_Socket_id::_Invalid;
     }
-    return this->_Make_socket(_Fd);
+    return this->_Make_socket(_Fd, _Error);
 }
 
 inline auto stdnet::_Hidden::_Libevent_context::_Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error) -> void
@@ -241,8 +239,17 @@ inline auto stdnet::_Hidden::_Libevent_context::_Accept(::stdnet::_Hidden::_Cont
                 int _Rc = ::accept(_Ctxt._Native_handle(_Id), ::std::get<0>(_Completion)._Data(), &::std::get<1>(_Completion));
                 if (0 <= _Rc)
                 {
-                    ::std::get<2>(_Completion) = _Ctxt._Make_socket(_Rc);
-                    _Completion._Complete();
+                    auto _C{::std::get<3>(_Completion)? ::std::get<3>(_Completion): &_Ctxt};
+                    ::std::error_code _Error{};
+                    ::std::get<2>(_Completion) = _C->_Make_socket(_Rc, _Error);
+                    if (_Error)
+                    {
+                        _Completion._Error(_Error);
+                    }
+                    else
+                    {
+                        _Completion._Complete();
+                    }
                     return true;
                 }
                 else

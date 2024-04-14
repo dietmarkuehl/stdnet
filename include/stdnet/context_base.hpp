@@ -42,7 +42,8 @@ struct stdnet::_Hidden::_Context_base
     using _Accept_operation = ::stdnet::_Hidden::_Io_operation<
         ::std::tuple<::stdnet::_Hidden::_Endpoint,
                      ::socklen_t,
-                     ::std::optional<::stdnet::_Hidden::_Socket_id>
+                     ::std::optional<::stdnet::_Hidden::_Socket_id>,
+                     ::stdnet::_Hidden::_Context_base*
                      >
         >;
     using _Connect_operation = ::stdnet::_Hidden::_Io_operation<
@@ -62,7 +63,7 @@ struct stdnet::_Hidden::_Context_base
         >;
 
     virtual ~_Context_base() = default;
-    virtual auto _Make_socket(int) -> ::stdnet::_Hidden::_Socket_id = 0;
+    virtual auto _Make_socket(int, ::std::error_code& _Error) -> ::stdnet::_Hidden::_Socket_id = 0;
     virtual auto _Make_socket(int, int, int, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id = 0;
     virtual auto _Release(::stdnet::_Hidden::_Socket_id, ::std::error_code&) -> void = 0;
     virtual auto _Native_handle(::stdnet::_Hidden::_Socket_id) -> _Stdnet_native_handle_type = 0;

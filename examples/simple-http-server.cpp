@@ -20,7 +20,6 @@
 #include <stdnet/socket.hpp>
 #include <stdnet/internet.hpp>
 #include <stdnet/buffer.hpp>
-#include <stdnet/ring_buffer.hpp>
 #include <stdnet/timer.hpp>
 #include <stdnet/openssl_context.hpp>
 #include <exec/async_scope.hpp>

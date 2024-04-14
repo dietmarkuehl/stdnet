@@ -54,7 +54,7 @@ struct stdnet::_Hidden::_Poll_context final
     ::std::vector<::pollfd>     _D_poll;
     ::std::vector<::stdnet::_Hidden::_Io_base*> _D_outstanding;
 
-    auto _Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id override final
+    auto _Make_socket(int _Fd, ::std::error_code&) -> ::stdnet::_Hidden::_Socket_id override final
     {
         return this->_D_sockets._Insert(_Fd);
     }
@@ -67,7 +67,7 @@ struct stdnet::_Hidden::_Poll_context final
             _Error = ::std::error_code(errno, ::std::system_category());
             return ::stdnet::_Hidden::_Socket_id::_Invalid;
         }
-        return this->_Make_socket(_Fd);
+        return this->_Make_socket(_Fd, _Error);
     }
     auto _Release(::stdnet::_Hidden::_Socket_id _Id, ::std::error_code& _Error) -> void override final
     {
@@ -180,6 +180,10 @@ struct stdnet::_Hidden::_Poll_context final
         -> bool override final
     {
         auto _Id(_Completion->_Id);
+        if (_Completion->_Context == nullptr)
+        {
+            _Completion->_Context = this;
+        }
         _Completion->_Work =
             [](::stdnet::_Hidden::_Context_base& _Ctxt, ::stdnet::_Hidden::_Io_base* _Comp)
             {
@@ -191,8 +195,17 @@ struct stdnet::_Hidden::_Poll_context final
                     int _Rc = ::accept(_Ctxt._Native_handle(_Id), ::std::get<0>(_Completion)._Data(), &::std::get<1>(_Completion));
                     if (0 <= _Rc)
                     {
-                        ::std::get<2>(_Completion) =  _Ctxt._Make_socket(_Rc);
-                        _Completion._Complete();
+                        auto _C{::std::get<3>(_Completion)? ::std::get<3>(_Completion): &_Ctxt};
+                        ::std::error_code _Error{};
+                        ::std::get<2>(_Completion) =  _C->_Make_socket(_Rc, _Error);
+                        if (_Error)
+                        {
+                            _Completion._Error(_Error);
+                        }
+                        else
+                        {
+                            _Completion._Complete();
+                        }
                         return true;
                     }
                     else
