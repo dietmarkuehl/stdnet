@@ -34,9 +34,12 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory(stdexec)
 include_directories(stdexec/include)
 
-# --- Make libevent available --------------------------------------------------
+# --- Make base libraries available --------------------------------------------------
 
 add_subdirectory(libevent)
+
+include_directories(openssl/build/ssl/include)
+link_directories(openssl/build/ssl/lib)
 
 # --- stdnet -------------------------------------------------------------------
 include_directories(include)
@@ -51,7 +54,7 @@ list(APPEND stdnet_examples
 )
 foreach(example ${stdnet_examples})
     add_executable(${example} examples/${example}.cpp)
-    target_link_libraries(${example} STDEXEC::stdexec event_core_shared)
+    target_link_libraries(${example} STDEXEC::stdexec event_core_shared ssl crypto)
 endforeach()
 
 list (APPEND stdnet_tests

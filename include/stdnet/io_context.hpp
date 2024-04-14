@@ -25,8 +25,10 @@
 #include <stdnet/context_base.hpp>
 #include <stdnet/io_context_scheduler.hpp>
 #include <stdnet/libevent_context.hpp>
+#include <stdnet/openssl_context.hpp>
 #include <stdnet/poll_context.hpp>
 #include <stdnet/container.hpp>
+#include <string>
 #include <cstdint>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -39,6 +41,8 @@
 namespace stdnet
 {
     class io_context;
+
+    auto tls_context(::stdnet::io_context&, ::std::string const&, ::std::string const&) -> ::stdnet::io_context;
 }
 
 // ----------------------------------------------------------------------------
@@ -46,7 +50,7 @@ namespace stdnet
 class stdnet::io_context
 {
 private:
-    ::std::unique_ptr<::stdnet::_Hidden::_Context_base> _D_ownedx{new ::stdnet::_Hidden::_Poll_context()};
+    //::std::unique_ptr<::stdnet::_Hidden::_Context_base> _D_ownedx{new ::stdnet::_Hidden::_Poll_context()};
     ::std::unique_ptr<::stdnet::_Hidden::_Context_base> _D_owned{new ::stdnet::_Hidden::_Libevent_context()};
     ::stdnet::_Hidden::_Context_base&                   _D_context{*this->_D_owned};
 
@@ -55,9 +59,17 @@ public:
     class executor_type {};
 
     io_context() = default;
-    io_context(::stdnet::_Hidden::_Context_base& _Context): _D_owned(), _D_context(_Context) {}
+    io_context(::stdnet::_Hidden::_Context_base& _Context, bool _Owned = false)
+        : _D_owned(_Owned? &_Context: nullptr)
+        , _D_context(_Context)
+    {
+    }
     io_context(io_context&&) = delete;
 
+    auto _Context() -> ::stdnet::_Hidden::_Context_base&
+    {
+        return this->_D_context;
+    }
     auto _Make_socket(int _D, int _T, int _P, ::std::error_code& _Error) -> ::stdnet::_Hidden::_Socket_id
     {
         return this->_D_context._Make_socket(_D, _T, _P, _Error);
@@ -100,6 +112,15 @@ public:
         return _Count;
     }
 };
+
+// ----------------------------------------------------------------------------
+
+inline auto stdnet::tls_context(::stdnet::io_context& _Context,
+                                ::std::string const&  _Cert,
+                                ::std::string const&  _Key) -> ::stdnet::io_context
+{
+    return ::stdnet::io_context(*new ::stdnet::_Hidden::_Openssl_context(_Context._Context(), _Cert, _Key), true);
+}
 
 // ----------------------------------------------------------------------------
 

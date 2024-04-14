@@ -20,7 +20,9 @@
 #include <stdnet/socket.hpp>
 #include <stdnet/internet.hpp>
 #include <stdnet/buffer.hpp>
+#include <stdnet/ring_buffer.hpp>
 #include <stdnet/timer.hpp>
+#include <stdnet/openssl_context.hpp>
 #include <exec/async_scope.hpp>
 #include <exec/when_any.hpp>
 #include <exec/task.hpp>
@@ -191,18 +193,27 @@ auto make_client(Stream s) -> exec::task<void>
 
 auto make_server(auto& context, auto& scope, auto endpoint) -> exec::task<void>
 {
-    stdnet::ip::tcp::acceptor acceptor(context, endpoint);
-    while (true)
+    try
     {
-        auto[stream, client] = co_await stdnet::async_accept(acceptor);
-        std::cout << "received a connection from '" << client << "'\n";
-        scope.spawn(exec::when_any(
+        stdnet::ip::tcp::acceptor acceptor(context, endpoint);
+        std::cout << "created acceptor for " << endpoint << "\n";
+        while (true)
+        {
+            auto[stream, client] = co_await stdnet::async_accept(acceptor);
+            std::cout << "received a connection from '" << client << "'\n";
+            scope.spawn(exec::when_any(
             stdnet::async_resume_after(context.get_scheduler(), 10s),
             make_client(::std::move(stream))
-            )
-            | stdexec::upon_error([](auto){ std::cout << "error\n"; })
-            );
+                )
+                | stdexec::upon_error([](auto){ std::cout << "error\n"; })
+                );
+        }
     }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+    
 }
 
 int main()
@@ -210,13 +221,17 @@ int main()
     std::cout << std::unitbuf;
     try
     {
-        stdnet::io_context        context;
+        stdnet::io_context context;
+        stdnet::io_context tls_context{::stdnet::tls_context(context, "ssl/server_cert.pem", "ssl/server_keypair.pem")};
+
         stdnet::ip::tcp::endpoint endpoint(stdnet::ip::address_v4::any(), 12345);
+        stdnet::ip::tcp::endpoint tls_endpoint(stdnet::ip::address_v4::any(), 12346);
         exec::async_scope         scope;
 
         scope.spawn(make_server(context, scope, endpoint));
+        scope.spawn(make_server(tls_context, scope, tls_endpoint));
 
-        context.run();
+        tls_context.run();
     }
     catch (std::exception const& ex)
     {

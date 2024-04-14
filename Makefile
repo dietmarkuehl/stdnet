@@ -27,6 +27,9 @@ CMAKE_CXX = $(CXX)
 
 default: test
 
+openssl:
+	git clone https://github.com/openssl/openssl
+
 stdexec:
 	git clone https://github.com/NVIDIA/stdexec
 
@@ -36,7 +39,14 @@ libevent:
 test: build
 	./$(BUILD)/test_stdnet
 
-build:  stdexec libevent
+openssl/Makefile:
+	cd openssl; ./Configure --prefix=`pwd`/build/ssl --openssldir=`pwd`/build/ssl
+
+build/ssl: openssl
+	cd openssl; echo $(MAKE)
+	cd openssl; echo $(MAKE) install
+
+build:  stdexec libevent build/ssl
 	@mkdir -p $(BUILD)
 	cd $(BUILD); cmake ../.. # -DCMAKE_C_COMPILER=$(CMAKE_CC) -DCMAKE_CC_COMPILER=$(CMAKE_CXX)
 	cmake --build $(BUILD)

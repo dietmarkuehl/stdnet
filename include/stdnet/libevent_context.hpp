@@ -129,12 +129,14 @@ inline stdnet::_Hidden::_Libevent_context::_Libevent_context(::event_base* _C)
 
 inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _Fd) -> ::stdnet::_Hidden::_Socket_id
 {
+    std::cout << "_Libevent _Make_socket\n";
     return this->_D_sockets._Insert(_Fd);
 }
 
 inline auto stdnet::_Hidden::_Libevent_context::_Make_socket(int _D, int _T, int _P, ::std::error_code& _Error)
     -> ::stdnet::_Hidden::_Socket_id
 {
+    std::cout << "_Libevent _Make_socket\n";
     int _Fd(::socket(_D, _T, _P));
     if (_Fd < 0)
     {

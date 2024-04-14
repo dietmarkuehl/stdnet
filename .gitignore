@@ -36,4 +36,6 @@ olderr
 build
 stdexec
 libevent
+openssl
 .vscode
+*.pem
