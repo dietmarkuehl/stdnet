@@ -33,6 +33,7 @@
 #include <poll.h>
 #include <limits>
 #include <cerrno>
+#include <csignal>
 
 // ----------------------------------------------------------------------------
 
@@ -54,7 +55,7 @@ public:
     using scheduler_type = ::stdnet::_Hidden::_Io_context_scheduler;
     class executor_type {};
 
-    io_context() = default;
+    io_context() { std::signal(SIGPIPE, SIG_IGN); }
     io_context(::stdnet::_Hidden::_Context_base& _Context): _D_owned(), _D_context(_Context) {}
     io_context(io_context&&) = delete;
 

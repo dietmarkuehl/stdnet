@@ -366,6 +366,11 @@ inline auto stdnet::_Hidden::_Libevent_context::_Receive(::stdnet::_Hidden::_Con
                     default:
                         _Completion._Error(::std::error_code(errno, ::std::system_category()));
                         return true;
+                    case ECONNRESET:
+                    case EPIPE:
+                        ::std::get<2>(_Completion) = 0u;
+                        _Completion._Complete();
+                        return true;
                     case EINTR:
                         break;
                     case EWOULDBLOCK:
@@ -415,6 +420,11 @@ inline auto stdnet::_Hidden::_Libevent_context::_Send(::stdnet::_Hidden::_Contex
                     {
                     default:
                         _Completion._Error(::std::error_code(errno, ::std::system_category()));
+                        return true;
+                    case ECONNRESET:
+                    case EPIPE:
+                        ::std::get<2>(_Completion) = 0u;
+                        _Completion._Complete();
                         return true;
                     case EINTR:
                         break;

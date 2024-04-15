@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <coroutine>
 #include <cstdint>
 #include <cstddef>
 #include <exception>
