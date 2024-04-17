@@ -299,7 +299,7 @@ private:
     }
 
 public:
-    explicit basic_socket_acceptor(::stdnet::io_context&);
+    //explicit basic_socket_acceptor(::stdnet::io_context&);
     basic_socket_acceptor(::stdnet::io_context&, protocol_type const& protocol);
     basic_socket_acceptor(::stdnet::io_context& _Context, endpoint_type const& _Endpoint, bool _Reuse = true)
         : ::stdnet::socket_base()
