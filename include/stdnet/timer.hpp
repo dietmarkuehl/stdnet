@@ -50,8 +50,8 @@ struct stdnet::_Hidden::_Resume_after_desc
     {
         using _Completion_signature = ::stdexec::set_value_t();
 
-        _Scheduler                   _D_scheduler;
-        ::std::chrono::microseconds  _D_duration;
+        ::std::remove_cvref_t<_Scheduler> _D_scheduler;
+        ::std::chrono::microseconds       _D_duration;
 
         auto _Id() const -> ::stdnet::_Hidden::_Socket_id { return {}; }
         auto _Events() const { return decltype(POLLIN)(); }
@@ -78,7 +78,7 @@ struct stdnet::_Hidden::_Resume_at_desc
     {
         using _Completion_signature = ::stdexec::set_value_t();
 
-        _Scheduler                              _D_scheduler;
+        ::std::remove_cvref_t<_Scheduler>       _D_scheduler;
         ::std::chrono::system_clock::time_point _D_time;
 
         auto _Id() const -> ::stdnet::_Hidden::_Socket_id { return {}; }
