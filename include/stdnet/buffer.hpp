@@ -56,6 +56,12 @@ namespace stdnet
     auto buffer(char (&)[_S]) -> ::stdnet::mutable_buffer;
     auto buffer(char*, ::std::size_t) -> ::stdnet::mutable_buffer;
     auto buffer(char const*, ::std::size_t) -> ::stdnet::const_buffer;
+    template <typename _CT>
+        requires requires(_CT&& _C){ _C.data(); _C.size(); }
+    auto buffer(_CT&& _C)
+    {
+        return stdnet::buffer(_C.data(), _C.size());
+    }
 }
 
 // ----------------------------------------------------------------------------
