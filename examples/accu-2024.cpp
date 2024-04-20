@@ -111,7 +111,8 @@ exec::task<void> make_client(auto stream, auto& scope)
                 {
                     co_await send_response(stream, "200 OK", "shutting down")
                          ;
-                    scope.get_stop_source().request_stop();
+                    std::invoke([&scope]{ scope.get_stop_source().request_stop(); });
+                    break;
                 }
                 else
                 {
