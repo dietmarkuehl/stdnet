@@ -143,7 +143,8 @@ struct stdnet::_Hidden::_Send_desc
         auto _Get_scheduler() { return this->_D_stream.get_scheduler(); }
         auto _Set_value(_Operation& _O, auto&& _Receiver)
         {
-            ::stdexec::set_value(::std::move(_Receiver), ::std::get<2>(_O));
+            ::stdexec::set_value(::std::move(_Receiver),
+                                 ::std::move(::std::get<2>(_O)));
         }
         auto _Submit(auto* _Base) -> bool
         {

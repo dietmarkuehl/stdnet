@@ -72,7 +72,6 @@ auto send_response(auto& stream, std::string head, std::string body)
 
     return stdexec::just() | stdexec::let_value([data = out.str(), &stream]()mutable noexcept {
         return stdnet::async_send(stream, stdnet::buffer(data))
-             | stdexec::then([](auto&&) noexcept {})
              ;
         }
     )

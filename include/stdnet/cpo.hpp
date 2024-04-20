@@ -196,9 +196,9 @@ struct _Cpo_Sender
     friend auto tag_invoke(::stdexec::connect_t, _Cpo_Sender&& _Self, _Receiver&& _R)
     {
         return _Cpo_State<_Desc, _Data, ::std::remove_cvref_t<_Receiver>, _Upstream>(
-            std::move(_Self._D_data),
+            ::std::move(_Self._D_data),
             ::std::forward<_Receiver>(_R),
-            _Self._D_upstream
+            ::std::move(_Self._D_upstream)
             );
     }
 };
