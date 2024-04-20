@@ -158,7 +158,7 @@ struct _Cpo_State
         _D_callback.reset();
         if (0 == --this->_D_outstanding)
         {
-            ::stdexec::set_error(::std::move(this->_D_receiver), _Err);
+            ::stdexec::set_error(::std::move(this->_D_receiver), std::move(_Err));
         }
     }
     auto _Cancel() -> void override final

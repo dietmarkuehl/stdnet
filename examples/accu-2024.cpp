@@ -62,16 +62,6 @@ using namespace std::string_view_literals;
 
 using on_exit = std::unique_ptr<char const, decltype([](auto m){ std::cout << m << "\n"; })>;
 
-exec::task<void> xsend_response(auto& stream, std::string head, std::string body)
-{
-    std::ostringstream out;
-    out << "HTTP/1.1 " << head << "\r\n"
-        << "Content-Length: " << body.size() << "\r\n"
-        << "\r\n"
-        << body;
-    std::string data(out.str());
-    co_await stdnet::async_send(stream, stdnet::buffer(data));
-}
 auto send_response(auto& stream, std::string head, std::string body)
 {
     std::ostringstream out;
@@ -83,7 +73,6 @@ auto send_response(auto& stream, std::string head, std::string body)
     return stdexec::just() | stdexec::let_value([data = out.str(), &stream]()mutable noexcept {
         return stdnet::async_send(stream, stdnet::buffer(data))
              | stdexec::then([](auto&&) noexcept {})
-             | stdexec::upon_error([](auto&&){})
              ;
         }
     )
