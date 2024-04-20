@@ -15,8 +15,8 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(stdnet)
 
-#add_compile_options(-fsanitize=address -g)
-#add_link_options(-fsanitize=address)
+# add_compile_options(-fsanitize=address -g)
+# add_link_options(-fsanitize=address)
 
 # --- Make Catch2 available ----------------------------------------------------
 include(FetchContent)
@@ -48,6 +48,7 @@ set(CMAKE_CXX_STANDARD 23)
 
 list(APPEND stdnet_examples
     accu-2024
+    accu-client-2024
 )
 list(APPEND xstdnet_examples
     overview
