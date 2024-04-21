@@ -121,6 +121,7 @@ exec::task<void> make_client(auto stream, auto& scope)
             }
 
             b.erase(b.begin(), b.begin() + pos);
+            end -= pos;
         }
         if (b.size() == end)
         {
