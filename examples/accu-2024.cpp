@@ -83,7 +83,7 @@ std::unordered_map<std::string, std::string> data{
     {"fav.png", "data/fav.png" }
 };
 
-exec::task<void> make_client(auto stream, auto& scope)
+exec::task<void> make_client(auto stream, bool& keep_running)
 {
     on_exit msg("exiting client");
     std::cout << "inside client\n";
@@ -109,9 +109,8 @@ exec::task<void> make_client(auto stream, auto& scope)
                 }
                 else if (method == "GET" && url == "/exit")
                 {
-                    co_await send_response(stream, "200 OK", "shutting down")
-                         ;
-                    std::invoke([&scope]{ scope.get_stop_source().request_stop(); });
+                    co_await send_response(stream, "200 OK", "shutting down");
+                    keep_running = false;
                     break;
                 }
                 else
@@ -138,7 +137,7 @@ auto timeout(auto scheduler, auto duration, auto sender)
     );
 }
 
-exec::task<void> make_server(auto& context, auto& scope)
+exec::task<void> make_server(auto& context, auto& scope, bool& keep_running)
 {
     on_exit msg("exiting server");
     std::cout << "inside server\n";
@@ -149,7 +148,8 @@ exec::task<void> make_server(auto& context, auto& scope)
         auto[stream, client] = co_await stdnet::async_accept(acceptor);
         std::cout << "connection from " << client << "\n";
         scope.spawn(
-            timeout(context.get_scheduler(), 5s, make_client(std::move(stream), scope))
+            timeout(context.get_scheduler(), 5s,
+                    make_client(std::move(stream), keep_running))
             | stdexec::upon_error([](auto&&){ std::cout << "receiver an error\n";})
             );
     }
@@ -161,8 +161,11 @@ int main()
     std::cout << "hello, world\n";
     stdnet::io_context context;
     exec::async_scope scope;
-    scope.spawn(make_server(context, scope));
-    // scope.get_stop_source().request_stop();
-    context.run();
+    bool keep_running{true};
+    scope.spawn(make_server(context, scope, keep_running));
+    while (keep_running && 0 < context.run_one())
+    {
+    }
+    scope.get_stop_source().request_stop();
     stdexec::sync_wait(scope.on_empty());
 }
