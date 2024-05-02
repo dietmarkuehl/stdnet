@@ -48,7 +48,6 @@ set(CMAKE_CXX_STANDARD 23)
 
 list(APPEND stdnet_examples
     accu-2024
-    accu-client-2024
 )
 list(APPEND xstdnet_examples
     overview
@@ -56,6 +55,7 @@ list(APPEND xstdnet_examples
     simple-http-server
     server
     http-server-template
+    accu-client-2024
 )
 foreach(example ${stdnet_examples})
     add_executable(${example} examples/${example}.cpp)

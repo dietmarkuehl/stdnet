@@ -26,6 +26,8 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <array>
+#include <compare>
 #include <cstdint>
 #include <cstring>
 #include <ostream>
@@ -40,6 +42,7 @@ namespace stdnet::ip
 
     class tcp;
     class address_v4;
+    class address_v6;
     class address;
     template <typename> class basic_endpoint;
 }
@@ -142,6 +145,89 @@ basic_ostream<CharT, Traits>& os, const address_v4& addr);
 
 // ----------------------------------------------------------------------------
 
+class stdnet::ip::address_v6
+{
+public:
+    struct bytes_type
+        : ::std::array<unsigned char, 16>
+    {
+        template <typename... _Tt>
+        explicit constexpr bytes_type(_Tt... _T)
+            : std::array<unsigned char, 16>{{ static_cast<unsigned char>(_T)... }}
+        {
+        }
+    };
+
+private:
+    bytes_type _D_bytes;
+
+public:
+    static constexpr auto any() noexcept -> address_v6;
+    static constexpr auto loopback() noexcept -> address_v6;
+
+    constexpr address_v6() noexcept;
+    constexpr address_v6(address_v6 const&) noexcept = default;
+    constexpr address_v6(unsigned char const (&_Addr)[16]) noexcept
+    {
+        ::std::memcpy(_D_bytes.data(), _Addr, 16);
+    }
+
+    auto operator= (address_v6 const&) noexcept -> address_v6& = default;
+    constexpr auto operator== (address_v6 const&) const -> bool = default;
+    constexpr auto operator<=> (address_v6 const&) const -> ::std::strong_ordering;
+
+    auto _Get_address(::sockaddr_in6& _Addr, ::stdnet::ip::port_type _Port) const
+        -> ::socklen_t
+    {
+        _Addr.sin6_family = AF_INET6;
+        _Addr.sin6_port = htons(_Port);
+        _Addr.sin6_flowinfo = 0;
+        ::std::memcpy(_Addr.sin6_addr.s6_addr, this->_D_bytes.data(), 16);
+        _Addr.sin6_scope_id = 0;
+        return sizeof(::sockaddr_in6);
+    }
+
+    constexpr auto is_unspecified() const noexcept -> bool;
+    constexpr auto is_loopback() const noexcept -> bool;
+    constexpr auto is_multicast() const noexcept -> bool;
+    constexpr auto is_link_local() const noexcept -> bool;
+    constexpr auto is_site_local() const noexcept -> bool;
+    constexpr auto is_v4_mapped() const noexcept -> bool;
+    constexpr auto is_multicast_node_local() const noexcept -> bool;
+    constexpr auto is_multicast_link_local() const noexcept -> bool;
+    constexpr auto is_multicast_site_local() const noexcept -> bool;
+    constexpr auto is_multicast_org_local() const noexcept -> bool;
+    constexpr auto is_multicast_global() const noexcept -> bool;
+    constexpr auto to_bytes() const noexcept -> bytes_type;
+    template <typename Allocator = ::std::allocator<char>>
+    auto to_string(Allocator const& = {}) const
+        -> ::std::basic_string<char, ::std::char_traits<char>, Allocator>;
+
+    friend ::std::ostream& operator<< (::std::ostream& _Out, address_v6 const& _A)
+    {
+        return _Out << "::1";
+    }
+};
+
+inline constexpr stdnet::ip::address_v6::address_v6() noexcept
+    : _D_bytes()
+{
+}
+
+inline constexpr auto stdnet::ip::address_v6::any() noexcept
+    -> ::stdnet::ip::address_v6
+{
+    return ::stdnet::ip::address_v6();
+}
+
+inline constexpr auto stdnet::ip::address_v6::loopback() noexcept
+    -> ::stdnet::ip::address_v6
+{
+    return ::stdnet::ip::address_v6();
+}
+
+// ----------------------------------------------------------------------------
+
 class stdnet::ip::address
 {
 private:
@@ -167,7 +253,10 @@ public:
         this->_D_address._Inet.sin_addr.s_addr = htonl(_Address.to_uint());
         this->_D_address._Inet.sin_port = 0xFF'FF;
     }
-    constexpr address(::stdnet::ip::address_v6 const&) noexcept;
+    /*-dk:TODO constexpr*/ address(::stdnet::ip::address_v6 const& _Address) noexcept
+    {
+        _Address._Get_address(this->_D_address._Inet6, 0xFF'FF);
+    }
 
     auto operator=(address const&) noexcept -> address& = default;
     auto operator=(::stdnet::ip::address_v4 const&) noexcept -> address&;
@@ -180,7 +269,10 @@ public:
     {
         return ::stdnet::ip::address_v4(ntohl(reinterpret_cast<::sockaddr_in const&>(this->_D_address._Storage).sin_addr.s_addr));
     }
-    constexpr auto to_v6() const -> ::stdnet::ip::address_v6;
+    constexpr auto to_v6() const -> ::stdnet::ip::address_v6
+    {
+        return ::stdnet::ip::address_v6(this->_D_address._Inet6.sin6_addr.s6_addr);
+    }
     constexpr auto is_unspecified() const noexcept -> bool;
     constexpr auto is_loopback() const noexcept -> bool;
     constexpr auto is_multicast() const noexcept -> bool;
@@ -192,7 +284,7 @@ public:
         if (_A.is_v4())
             return _Out << _A.to_v4();
         else
-            return _Out << "TODO";
+            return _Out << _A.to_v6();
     }
 };
 

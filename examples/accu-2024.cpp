@@ -137,11 +137,11 @@ auto timeout(auto scheduler, auto duration, auto sender)
     );
 }
 
-exec::task<void> make_server(auto& context, auto& scope, bool& keep_running)
+exec::task<void> make_server(auto& context, auto& scope, bool& keep_running, auto ep)
 {
     on_exit msg("exiting server");
-    std::cout << "inside server\n";
-    stdnet::ip::tcp::endpoint endpoint(stdnet::ip::address_v4::any(), 12345);
+    std::cout << "inside server: " << ep << "\n";
+    stdnet::ip::tcp::endpoint endpoint(ep, 12345);
     stdnet::ip::tcp::acceptor acceptor(context, endpoint);
     while (true)
     {
@@ -162,7 +162,10 @@ int main()
     stdnet::io_context context;
     exec::async_scope scope;
     bool keep_running{true};
-    scope.spawn(make_server(context, scope, keep_running));
+    scope.spawn(make_server(context, scope, keep_running,
+                stdnet::ip::address_v4::any()));
+    scope.spawn(make_server(context, scope, keep_running,
+                stdnet::ip::address_v6::any()));
     while (keep_running && 0 < context.run_one())
     {
     }
