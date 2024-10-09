@@ -110,7 +110,7 @@ struct _Cpo_State
         }
     };
     using _Upstream_state_t = decltype(::stdexec::connect(::std::declval<_Upstream&>(), ::std::declval<_Upstream_receiver<_Receiver>>()));
-    using _Stop_token = decltype(::stdexec::get_stop_token(::stdexec::get_env(::std::declval<_Receiver const&>())));
+    using _Stop_token = std::remove_cvref_t<decltype(::stdexec::get_stop_token(::stdexec::get_env(::std::declval<_Receiver const&>())))>;
     using _Callback = typename _Stop_token::template callback_type<_Cancel_callback>;
 
     _Data                      _D_data;
